@@ -32,7 +32,7 @@ function App() {
   const [isPlaying, setIsPlaying] = useState(false)
 
   useEffect(() => {
-    const socketInstance = io('http://localhost:3000');
+    const socketInstance = io();
     setSocket(socketInstance);
   
     // listen for events emitted by the server
@@ -41,8 +41,9 @@ function App() {
       console.log('Connected to server');
     });
   
-    socketInstance.on('message', (data) => {
-      console.log(`Received message: ${data}`);
+    socketInstance.on('start', (data) => {
+      console.log(`start`);
+      playSynth();
     });
 
     socketInstance.on("starttime", (data =>
@@ -66,9 +67,36 @@ function App() {
   }, []);
 
   //play a middle 'C' for the duration of an 8th note
-  function startOrchestra() {
-    socket.emit('conductor-start');
-    setIsPlaying(!isPlaying);
+  function playSynth() {
+    console.info("PLAY SOUND");
+    //synth.triggerAttackRelease("C4", "32n");
+
+    console.log(Tone.getTransport());
+
+
+    if(Tone.getTransport().state === "started")
+    {
+      Tone.getTransport().stop();
+      setIsPlaying(false);
+    } else {
+      Tone.getTransport().start();
+      setIsPlaying(true)
+    }
+    
+    
+
+  //   //play a note every quarter-note
+  //   const loopA = new Tone.Loop((time) => {
+  //     synthA.triggerAttackRelease("C2", "8n", time);
+  //   }, "4n").start(0);
+  //   //play another note every off quarter-note, by starting it "8n"
+  //   const loopB = new Tone.Loop((time) => {
+  //     synthB.triggerAttackRelease("C4", "8n", time);
+  //   }, "4n").start("8n");
+  //   // all loops start when the Transport is started
+  //   Tone.getTransport().start();
+  //   // ramp up to 800 bpm over 10 seconds
+  //   Tone.getTransport().bpm.rampTo(800, 10);
   }
 
   //const myp5 = new p5(s);
@@ -80,7 +108,7 @@ function App() {
         <p>
           CONDUCTOR MODE
         </p>
-        <button onClick={() => startOrchestra()}>{isPlaying ? "Stop" : "Play"}</button>
+        <button onClick={() => playSynth()}>{isPlaying ? "Stop" : "Play"}</button>
       </header>
     </div>
   );

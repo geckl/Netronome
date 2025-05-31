@@ -38,7 +38,7 @@ socket.on('disconnect', () => {
     });
 });
   
-server.listen(3000, () => {
+server.listen(port, () => {
 console.log('listening on *:3000');
 var networkInterfaces = os.networkInterfaces();
 console.log("Connect to Metronome here: http://" + networkInterfaces['en0'][0].address + ":3000");
