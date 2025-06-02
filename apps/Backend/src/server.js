@@ -29,6 +29,16 @@ socket.on('conductor-start', (msg) => {
     socket.broadcast.emit('start')
   });
 
+  socket.on('conductor-stop', (msg) => {
+    console.log('conductor-stop');
+    socket.broadcast.emit('stop')
+  });
+
+// Handle incoming audio stream
+socket.on('audioStream', (audioData) => {
+    socket.broadcast.emit('audioStream', audioData);
+});
+
 socket.on('connect_error', (err) => {
     console.log(err.message);
 })
