@@ -8,22 +8,11 @@ import InputDropdown from './Inputs';
 import React from 'react';
 
 
-// const socket = io():
-// socket.on('connect', function() {
-//   console.log('I have made a two-way connection to the server!')
-// })
-
-//create a synth and connect it to the main output (your speakers)
-//const synth = new Tone.Synth().toDestination();
-var player = new Tone.Player(Woodblock).toDestination();
-const loopPlayer = new Tone.Loop((time) => {
-  player.start(time);
-}, "4n").start(0);
-//const synthA = new Tone.FMSynth().toDestination();
-//const synthB = new Tone.AMSynth().toDestination();
-
-
-//const Transport = Tone.getTransport();
+// Record monotonic clock's initial value
+//const baseTime = window.performance.timeOrigin;
+//console.log(baseTime);
+//console.log(Tone.getContext().now());
+let baseTime = 0;
 
 
 function App() {
@@ -33,6 +22,7 @@ function App() {
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]); //MediaDeviceInfo
   const [selectedAudioId, setSelectedAudioId] = useState(null);
 
+
   useEffect(() => {
     const socketInstance = io({
       transports: ['websocket'],
@@ -41,7 +31,6 @@ function App() {
     setSocket(socketInstance);
 
     // listen for events emitted by the server
-
     socketInstance.on('connect', () => {
       console.log('Connected to server');
     });
@@ -51,10 +40,11 @@ function App() {
     //   metronome(true);
     // });
 
-    socketInstance.on("starttime", (data => {
-      console.log("Start Time: " + data);
+    socketInstance.on("starttime", (data: Date) => {
+      console.log("Backend Start Time: ");
+      console.log(new Date(data));
     }
-    ))
+    );
 
     socketInstance.on('audioStream', (audioData) => {
       var newData = audioData.split(";");
@@ -74,7 +64,28 @@ function App() {
     //   //console.log(latency);
     // });
 
+    const audioContext = new Tone.Context();
+    baseTime = Date.now();
+    Tone.setContext(audioContext);
+
+    //create a synth and connect it to the main output (your speakers)
+    var player = new Tone.Player(Woodblock).toDestination();
+    Tone.getTransport().scheduleRepeat((time) => {
+      player.start(time);
+    }, "4n", 0);
+
     getDevices();
+
+    // client-side
+    setInterval(() => {
+      const start = Date.now();
+
+      // volatile, so the packet will be discarded if the socket is not connected
+      socketInstance.volatile.emit("ping", () => {
+        const latency = Date.now() - start;
+        console.log("Conductor latency: ", latency);
+      });
+    }, 5000);
 
     return () => {
       if (socketInstance) {
@@ -109,7 +120,7 @@ function App() {
             fileReader.readAsDataURL(audioBlob);
             fileReader.onloadend = function () {
               var base64String = fileReader.result;
-              socket.emit("audioStream", base64String);
+              socket.volatile.emit("audioStream", base64String);
             };
 
             madiaRecorder.start();
@@ -134,8 +145,12 @@ function App() {
   function metronome(play: boolean) {
     if (socket) {
       if (play) {
-        socket.emit('conductor-start');
-        Tone.getTransport().start();
+        const targetTime = Date.now() + 1000;
+        socket.emit('conductor-start', targetTime);
+        let time = getContextTime(targetTime, baseTime);
+        console.log("Absolute Time: ", time);
+        console.log(Tone.getContext().now());
+        Tone.getTransport().start(time);
         setIsPlaying(true)
       } else {
         socket.emit('conductor-stop');
@@ -144,7 +159,7 @@ function App() {
       }
     }
   }
-  
+
 
   function getDevices() {
     const inputs: MediaDeviceInfo[] = [];
@@ -167,6 +182,12 @@ function App() {
           console.error(`${err.name}: ${err.message}`);
         });
     }
+  }
+
+  function getContextTime(targetTime: number, baseTime: number) {
+    console.log("Target Time: ", targetTime);
+    console.log("baseTime: ", baseTime);
+    return (targetTime - baseTime) / 1000;
   }
 
   return (

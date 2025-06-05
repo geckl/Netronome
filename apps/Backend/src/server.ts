@@ -1,12 +1,17 @@
-var http = require('http');
-const express = require('express')
+import http from "http";
+import express from "express";
 const app = express()
 const server = http.createServer(app);
-const { Server } = require("socket.io");
+import { Server, Socket } from "socket.io";
 const io = new Server(server, {pingInterval: 5000});
-var path = require('path');
+import path from "path";
 const port = 3000
-var os = require('os');
+import os from "os";
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 app.use(express.static(path.join(__dirname, '../../Performer/build')));
 app.use('/conductor',express.static(path.join(__dirname, '../../Conductor/build')));
@@ -19,14 +24,28 @@ app.use('/conductor',express.static(path.join(__dirname, '../../Conductor/build'
 //     res.sendFile(path.join(__dirname, '../../Conductor/build', "index.html"));
 // });
 
-io.on('connection', (socket) => {
+let baselineDate = new Date();
+
+io.on('connection', (socket: Socket) => {
 console.log('a user connected');
 
-socket.emit("starttime", 0 );
+let latency = 0;
 
-socket.on('conductor-start', (msg) => {
+socket.emit("starttime", baselineDate );
+
+socket.on("ping", (cb) => {
+    if (typeof cb === "function")
+      cb();
+  });
+
+  socket.conn.on("heartbeat", () => {
+    // called after each round trip of the heartbeat mechanism
+    console.log("heartbeat");
+  });
+
+socket.on('conductor-start', (msg: number) => {
     console.log('conductor-start');
-    socket.broadcast.emit('start')
+    socket.broadcast.emit('start', msg)
   });
 
   socket.on('conductor-stop', (msg) => {
@@ -51,5 +70,10 @@ socket.on('disconnect', () => {
 server.listen(port, () => {
 console.log('listening on *:3000');
 var networkInterfaces = os.networkInterfaces();
+if(networkInterfaces['en0'])
+{
 console.log("Connect to Metronome here: http://" + networkInterfaces['en0'][0].address + ":3000");
+} else {
+  console.log("ERROR: NO NETWORK CONNECTION FOUND")
+}
 });

@@ -4,15 +4,20 @@
   "dependencies": {
     "express": "^5.1.0",
     "nodemon": "^3.1.10",
-    "socket.io": "^4.8.1"
+    "socket.io": "^4.8.1",
+    "ts-node": "^10.9.2"
   },
   "scripts": {
-    "start": "nodemon src/server.js"
+    "start": "nodemon src/server.ts"
   },
   "pkg": {
-    "scripts": "src/server.js",
-    "assets": [ "../Conductor/build/**/*", "../Performer/build/**/*" ],
+    "scripts": "src/server.ts",
+    "assets": [
+      "../Conductor/build/**/*",
+      "../Performer/build/**/*"
+    ],
     "outputPath": "dist"
   },
-  "bin": "src/server.js"
+  "bin": "src/server.ts",
+  "type": "module"
 }

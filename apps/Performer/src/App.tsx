@@ -3,48 +3,33 @@ import './App.css';
 import * as Tone from "tone";
 import Woodblock from './sounds/woodblock.wav'
 import { useState, useEffect } from 'react';
-//const io = require("socket.io");
-//import { onEnabled } from './WebMidi';
 import io, { Socket } from 'socket.io-client';
 import React from 'react';
 
 
-// const socket = io():
-// socket.on('connect', function() {
-//   console.log('I have made a two-way connection to the server!')
-// })
-
-//create a synth and connect it to the main output (your speakers)
-//const synth = new Tone.Synth().toDestination();
-var player = new Tone.Player(Woodblock).toDestination();
-const loopPlayer = new Tone.Loop((time) => {
-  player.start(time);
-}, "4n").start(0);
-//const synthA = new Tone.FMSynth().toDestination();
-//const synthB = new Tone.AMSynth().toDestination();
-
-
-//const Transport = Tone.getTransport();
+// Record monotonic clock's initial value
+//const baseTime = window.performance.timeOrigin;
+//console.log(baseTime);
+// console.log(Tone.getContext().now());
+let baseTime = 0;
 
 
 function App() {
 
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  //const [audio, setAudio] = useState("data:audio/mpeg;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY29tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLm9yZwBURU5DAAAAHQAAA1N3aXRjaCBQbHVzIMKpIE5DSCBTb2Z0d2FyZQBUSVQyAAAABgAAAzIyMzUAVFNTRQAAAA8AAANMYXZmNTcuODMuMTAwAAAAAAAAAAAAAAD/80DEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQsRbAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQMSkAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV");
 
-  //var audio = new Audio();
-  //audio.autoplay = true;
+  // useEffect(() => {
 
-  useEffect(() => {
+  // }, []);
 
-  }, []);
-
-  function metronome(play: boolean) {
+  function togglePlayback(play: boolean, time: number = 0) {
     if (play) {
-      Tone.getTransport().start();
+      Tone.getTransport().start(time);
+      setIsPlaying(true);
     } else {
-      Tone.getTransport().stop();
+      Tone.getTransport().stop(time);
+      setIsPlaying(false);
     }
   }
 
@@ -63,55 +48,24 @@ function App() {
 
       socketInstance.on('connect', () => {
         console.log('Connected to server');
-        // navigator.mediaDevices.getUserMedia({ audio: true, video: false })
-        //   .then((stream) => {
-        //     var madiaRecorder = new MediaRecorder(stream);
-        //     var audioChunks: Blob[] = [];
-
-        //     madiaRecorder.addEventListener("dataavailable", function (event) {
-        //       audioChunks.push(event.data);
-        //     });
-
-        //     madiaRecorder.addEventListener("stop", function () {
-        //       var audioBlob = new Blob(audioChunks);
-        //       audioChunks = [];
-        //       var fileReader = new FileReader();
-        //       fileReader.readAsDataURL(audioBlob);
-        //       fileReader.onloadend = function () {
-        //         var base64String = fileReader.result;
-        //         socketInstance.emit("audioStream", base64String);
-        //       };
-
-        //       madiaRecorder.start();
-        //       setTimeout(function () {
-        //         madiaRecorder.stop();
-        //       }, 1000);
-        //     });
-
-        //     madiaRecorder.start();
-        //     setTimeout(function () {
-        //       madiaRecorder.stop();
-        //     }, 1000);
-        //   })
-        //   .catch((error) => {
-        //     console.error('Error capturing audio.', error);
-        //   });
       });
 
-      socketInstance.on('start', (data) => {
+      socketInstance.on('start', (targetTime: number) => {
         console.log(`start`);
-        setIsPlaying(true);
-        metronome(true);
+        let time = getContextTime(targetTime, baseTime);
+        console.log("Absolute Time: ", time);
+        console.log(Tone.getContext().now());
+        togglePlayback(true, time);
       });
 
       socketInstance.on('stop', (data) => {
         console.log(`stop`);
         setIsPlaying(false);
-        metronome(false);
+        togglePlayback(false);
       });
 
       socketInstance.on("starttime", (data => {
-        console.log("Start Time: " + data);
+        console.log("Backend Start Time: " + data);
       }
       ));
 
@@ -119,43 +73,67 @@ function App() {
         var newData = audioData.split(";");
         newData[0] = "data:audio/ogg;";
         newData = newData[0] + newData[1];
-
         console.log(newData);
 
-        //var buffer = new Audio(newData);
         if (document.hidden) {
           return;
         }
-        //var source = await Tone.getContext().decodeAudioData(newData);
+
         var player = new Tone.Player(newData).toDestination();
         Tone.loaded().then(() => {
           player.start();
         });
-      
-        //audio.src = newData;
-        //audio.load();
       });
+
+      const audioContext = new Tone.Context();
+      baseTime = Date.now();
+      Tone.setContext(audioContext);
+
+      //create a synth and connect it to the main output (your speakers)
+      //const synth = new Tone.Synth().toDestination();
+      var player = new Tone.Player(Woodblock).toDestination();
+      Tone.getTransport().scheduleRepeat((time) => {
+        player.start(time);
+      }, "4n", 0);
 
       // socketInstance.on('ping', function(ms) {
       //   console.log(ms)
       //   //const latency = ms;
       //   //console.log(latency);
       // });
+
+      // client-side
+      setInterval(() => {
+        const start = Date.now();
+
+        // volatile, so the packet will be discarded if the socket is not connected
+        socketInstance.volatile.emit("ping", () => {
+          const latency = Date.now() - start;
+          console.log("Performer latency: ", latency);
+        });
+      }, 5000);
+
     }
   };
 
-return (
-  <div className="App">
-    <header className="App-header">
-      <img src={logo} className="App-logo" alt="logo" />
-      <p>
-        NETRONOME {isPlaying ? "Stop" : "Play"}
-      </p>
-      {/* <button onClick={() => toggleMetronome()}>{isPlaying ? "Stop" : "Play"}</button> */}
-      <button onClick={() => joinOrchestra()}>{socket ? "Disconnect" : "Join"}</button>
-    </header>
-  </div>
-);
+  function getContextTime(targetTime: number, baseTime: number) {
+    console.log("Target Time: ", targetTime);
+    console.log("baseTime: ", baseTime);
+    return (targetTime - baseTime) / 1000;
+  }
+
+  return (
+    <div className="App">
+      <header className="App-header">
+        <img src={logo} className="App-logo" alt="logo" />
+        <p>
+          NETRONOME {isPlaying ? "Stop" : "Play"}
+        </p>
+        {/* <button onClick={() => togglePlayback()}>{isPlaying ? "Stop" : "Play"}</button> */}
+        <button onClick={() => joinOrchestra()}>{socket ? "Disconnect" : "Join"}</button>
+      </header>
+    </div>
+  );
 }
 
 export default App;
