@@ -2,13 +2,19 @@
   "name": "netronome",
   "version": "0.1.0",
   "dependencies": {
+    "@types/node": "^22.15.30",
+    "@typescript-eslint/eslint-plugin": "^8.33.1",
+    "@typescript-eslint/parser": "^8.33.1",
+    "eslint": "^9.28.0",
     "express": "^5.1.0",
     "nodemon": "^3.1.10",
+    "prettier": "^3.5.3",
     "socket.io": "^4.8.1",
-    "ts-node": "^10.9.2"
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
   },
   "scripts": {
-    "start": "nodemon src/server.ts"
+    "start": "tsx src/server.ts"
   },
   "pkg": {
     "scripts": "src/server.ts",
@@ -19,5 +25,8 @@
     "outputPath": "dist"
   },
   "bin": "src/server.ts",
-  "type": "module"
+  "type": "module",
+  "devDependencies": {
+    "@types/express": "^5.0.2"
+  }
 }
