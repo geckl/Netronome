@@ -3,77 +3,90 @@ import express from "express";
 const app = express()
 const server = http.createServer(app);
 import { Server, Socket } from "socket.io";
-const io = new Server(server, {pingInterval: 5000});
+const io = new Server(server, { pingInterval: 10000 });
 import path from "path";
 const port = 3000
 import os from "os";
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import Orchestra from "./orchestra.js";
+import { Performer } from "./types.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 app.use(express.static(path.join(__dirname, '../../Performer/build')));
-app.use('/conductor',express.static(path.join(__dirname, '../../Conductor/build')));
+app.use('/conductor', express.static(path.join(__dirname, '../../Conductor/build')));
 
-// app.get('*', (req, res) => {
-//     res.sendFile(path.join(__dirname, '../../Performer/build', "index.html"));
-// });
-
-// app.get('conductor/*', (req, res) => {
-//     res.sendFile(path.join(__dirname, '../../Conductor/build', "index.html"));
-// });
 
 let baselineDate = new Date();
+const orc = new Orchestra();
 
-io.on('connection', (socket: Socket) => {
-console.log('a user connected');
+// Namespaces
+var conductor = io.of('/conductor');
+var performers = io.of('/');
 
-let latency = 0;
 
-socket.emit("starttime", baselineDate );
+// Conductor Socket
+conductor.on('connection', (socket: Socket) => {
+  const conductor: Performer = { name: "Conductor", socket: socket, latency: 0 }
+  orc.conductor = conductor;
 
-socket.on("ping", (cb) => {
-    if (typeof cb === "function")
-      cb();
-  });
-
-  socket.conn.on("heartbeat", () => {
-    // called after each round trip of the heartbeat mechanism
-    console.log("heartbeat");
-  });
-
-socket.on('conductor-start', (msg: number) => {
+  socket.on('conductor-start', (targetTime: number, position: string) => {
     console.log('conductor-start');
-    socket.broadcast.emit('start', msg)
+    performers.emit('start', targetTime, position);
   });
 
-  socket.on('conductor-stop', (msg) => {
+  socket.on('conductor-stop', () => {
     console.log('conductor-stop');
-    socket.broadcast.emit('stop')
+    performers.emit('stop')
   });
 
-// Handle incoming audio stream
-socket.on('audioStream', (audioData) => {
-    socket.broadcast.emit('audioStream', audioData);
+  // Handle incoming audio stream
+  socket.on('audioStream', (audioData: string | ArrayBuffer | null) => {
+    performers.emit('audioStream', audioData);
+  });
 });
 
-socket.on('connect_error', (err) => {
+
+// Performer Socket
+performers.on('connection', (socket: Socket) => {
+  console.log('a user connected');
+
+  const performer: Performer = { name: `Performer #${orc.performers.length + 1}`, socket: socket, latency: 0 }
+  orc.addPerformer(performer);
+  socket.emit("starttime", baselineDate);
+
+  socket.on("ping", (time: number, cb:()=> void ) => {
+    const start = Date.now();
+    const latency = start - time;
+    if (typeof cb === "function") {
+      cb();
+    }
+    performer.latency = latency;
+    console.log(performer.name, " LATENCY: ", latency);
+  });
+
+  // socket.conn.on("heartbeat", () => {
+  //   // called after each round trip of the heartbeat mechanism
+  //   console.log("heartbeat");
+  // });
+
+  socket.on('connect_error', (err) => {
     console.log(err.message);
-})
+  })
 
-socket.on('disconnect', () => {
+  socket.on('disconnect', () => {
     console.log('user disconnected');
-    });
+  });
 });
-  
+
 server.listen(port, () => {
-console.log('listening on *:3000');
-var networkInterfaces = os.networkInterfaces();
-if(networkInterfaces['en0'])
-{
-console.log("Connect to Metronome here: http://" + networkInterfaces['en0'][0].address + ":3000");
-} else {
-  console.log("ERROR: NO NETWORK CONNECTION FOUND")
-}
+  console.log('listening on *:3000');
+  var networkInterfaces = os.networkInterfaces();
+  if (networkInterfaces['en0']) {
+    console.log("Connect to Metronome here: http://" + networkInterfaces['en0'][0].address + ":3000");
+  } else {
+    console.log("ERROR: NO NETWORK CONNECTION FOUND")
+  }
 });
