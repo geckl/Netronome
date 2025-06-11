@@ -12,7 +12,7 @@ import React from 'react';
 //const baseTime = window.performance.timeOrigin;
 //console.log(baseTime);
 //console.log(Tone.getContext().now());
-let baseTime = 0;
+let timeDiff = 0;
 
 
 function App() {
@@ -23,8 +23,17 @@ function App() {
   const [selectedAudioId, setSelectedAudioId] = useState(null);
 
 
-  useEffect(() => {
-    const socketInstance = io({
+  useEffect(async () => {
+
+    const audioContext = new Tone.Context();
+    //baseTime = Date.now();
+    timeDiff = window.performance.now();
+    Tone.setContext(audioContext, true);
+
+    // This won't work if Conductor is on mobile
+    await Tone.start();
+
+    const socketInstance = io('/conductor',{
       transports: ['websocket'],
       upgrade: false
     });
@@ -37,7 +46,7 @@ function App() {
 
     // socketInstance.on('start', (data) => {
     //   console.log(`start`);
-    //   metronome(true);
+    //   togglePlayback(true);
     // });
 
     socketInstance.on("starttime", (data: Date) => {
@@ -63,10 +72,6 @@ function App() {
     //   //const latency = ms;
     //   //console.log(latency);
     // });
-
-    const audioContext = new Tone.Context();
-    baseTime = Date.now();
-    Tone.setContext(audioContext);
 
     //create a synth and connect it to the main output (your speakers)
     var player = new Tone.Player(Woodblock).toDestination();
@@ -142,14 +147,14 @@ function App() {
     return;
   }, [selectedAudioId]);
 
-  function metronome(play: boolean) {
+  function togglePlayback(play: boolean, position: string = "0:0:0") {
     if (socket) {
       if (play) {
         const targetTime = Date.now() + 1000;
-        socket.emit('conductor-start', targetTime);
-        let time = getContextTime(targetTime, baseTime);
-        console.log("Absolute Time: ", time);
-        console.log(Tone.getContext().now());
+        socket.emit('conductor-start', targetTime, position);
+        let time = getAbsoluteTime(targetTime, timeDiff);
+        console.log("Timeline Time: ", time);
+        //console.log(Tone.getContext().immediate());
         Tone.getTransport().start(time);
         setIsPlaying(true)
       } else {
@@ -184,10 +189,9 @@ function App() {
     }
   }
 
-  function getContextTime(targetTime: number, baseTime: number) {
-    console.log("Target Time: ", targetTime);
-    console.log("baseTime: ", baseTime);
-    return (targetTime - baseTime) / 1000;
+  function getAbsoluteTime(targetTime: number, timeDiff: number) {
+    return (targetTime - window.performance.timeOrigin - timeDiff) / 1000;
+    //return (targetTime - );
   }
 
   return (
@@ -197,7 +201,7 @@ function App() {
         <p>
           NETRONOME (CONDUCTOR MODE)
         </p>
-        <button onClick={() => metronome(!isPlaying)}>{isPlaying ? "Stop" : "Play"}</button>
+        <button onClick={() => togglePlayback(!isPlaying)}>{isPlaying ? "Stop" : "Play"}</button>
         <InputDropdown inputs={audioInputs} setSelectedAudioId={setSelectedAudioId} ></InputDropdown>
       </header>
     </div>

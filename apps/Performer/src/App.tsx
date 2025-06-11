@@ -11,19 +11,26 @@ import React from 'react';
 //const baseTime = window.performance.timeOrigin;
 //console.log(baseTime);
 // console.log(Tone.getContext().now());
-let baseTime = 0;
+// let baseTime = window.performance.now();
+let timeDiff = 0;
 
 
 function App() {
 
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  // const [currentTime, setCurrentTime] = useState(0);
+  const [timeOrigin, setTimeOrigin] = useState(window.performance.timeOrigin);
 
   // useEffect(() => {
 
   // }, []);
 
-  function togglePlayback(play: boolean, time: number = 0) {
+  useEffect(() => {
+    console.log("static time origin: ", window.performance.timeOrigin, " variable time origin: ", timeOrigin);
+  }, [timeOrigin]);
+
+  function togglePlayback(play: boolean, time: number = 0, position: string = "0:0:0") {
     if (play) {
       Tone.getTransport().start(time);
       setIsPlaying(true);
@@ -40,22 +47,29 @@ function App() {
     } else {
       //audio.src = "data:audio/mpeg;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY29tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLm9yZwBURU5DAAAAHQAAA1N3aXRjaCBQbHVzIMKpIE5DSCBTb2Z0d2FyZQBUSVQyAAAABgAAAzIyMzUAVFNTRQAAAA8AAANMYXZmNTcuODMuMTAwAAAAAAAAAAAAAAD/80DEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQsRbAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQMSkAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV";
       //audio.play();
+
+      const audioContext = new Tone.Context();
+      // baseTime = Date.now();
+      timeDiff = window.performance.now();
+      Tone.setContext(audioContext, true);
+      // console.log("BaseTime: ", timeDiff);
+      // console.log("ToneTime: ", Tone.getContext().immediate());
       await Tone.start();
+
       const socketInstance = io();
       setSocket(socketInstance);
 
       // listen for events emitted by the server
-
       socketInstance.on('connect', () => {
         console.log('Connected to server');
       });
 
-      socketInstance.on('start', (targetTime: number) => {
+      socketInstance.on('start', (targetTime: number, position: string = "0:0:0") => {
         console.log(`start`);
-        let time = getContextTime(targetTime, baseTime);
-        console.log("Absolute Time: ", time);
-        console.log(Tone.getContext().now());
-        togglePlayback(true, time);
+        let time = getAbsoluteTime(targetTime, timeDiff);
+        console.log("Timeline Time: ", time);
+        // console.log(Tone.getContext().now());
+        togglePlayback(true, time, position);
       });
 
       socketInstance.on('stop', (data) => {
@@ -85,9 +99,10 @@ function App() {
         });
       });
 
-      const audioContext = new Tone.Context();
-      baseTime = Date.now();
-      Tone.setContext(audioContext);
+      // socketInstance.on("disconnect", (reason) => {
+      //   setSocket(null);
+      //   console.log("Performer disconnected: ", reason);
+      // });
 
       //create a synth and connect it to the main output (your speakers)
       //const synth = new Tone.Synth().toDestination();
@@ -105,21 +120,25 @@ function App() {
       // client-side
       setInterval(() => {
         const start = Date.now();
+        setTimeOrigin(start - window.performance.now());
 
         // volatile, so the packet will be discarded if the socket is not connected
-        socketInstance.volatile.emit("ping", () => {
+        socketInstance.volatile.emit("ping", start, () => {
           const latency = Date.now() - start;
           console.log("Performer latency: ", latency);
         });
       }, 5000);
 
+      // setInterval(() => {
+      //   setCurrentTime(Tone.getContext().now());
+      // }, 10);
+
     }
   };
 
-  function getContextTime(targetTime: number, baseTime: number) {
-    console.log("Target Time: ", targetTime);
-    console.log("baseTime: ", baseTime);
-    return (targetTime - baseTime) / 1000;
+  function getAbsoluteTime(targetTime: number, timeDiff: number) {
+    return (targetTime - timeOrigin - timeDiff) / 1000;
+    //return (targetTime - );
   }
 
   return (
@@ -131,6 +150,7 @@ function App() {
         </p>
         {/* <button onClick={() => togglePlayback()}>{isPlaying ? "Stop" : "Play"}</button> */}
         <button onClick={() => joinOrchestra()}>{socket ? "Disconnect" : "Join"}</button>
+        {/* <p>{currentTime}</p> */}
       </header>
     </div>
   );
