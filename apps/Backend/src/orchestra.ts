@@ -12,8 +12,9 @@ class Orchestra{
 
     public addPerformer(p: Performer){
         this.performers.push(p);
-        if(p.latency > this.totalLatency) {
-            this.totalLatency = p.latency * 1.5;
+        const maxLatency = Math.max(...p.latencies);
+        if(Math.max(maxLatency) > this.totalLatency) {
+            this.totalLatency = maxLatency * 1.5;
         }
     }
 }

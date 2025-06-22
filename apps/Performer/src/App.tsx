@@ -59,22 +59,25 @@ function App() {
       Tone.setContext(audioContext, true);
       await Tone.start();
 
+      let latencies: number[] = [];
       let serverOffsets: number[] = [];
 
       async function synchronize() {
         for (let i = 0; i < 5; i++) {
           const start = Date.now();
           // volatile, so the packet will be discarded if the socket is not connected
-          socket.volatile.emit("ping", start, (serverLatency: number) => {
+          socket.volatile.emit("calculate-latency", start, (latencyPlusOffset: number) => {
             const latency = Date.now() - start;
-            serverOffsets.push((serverLatency - (latency / 2)) / 1000);
+            latencies.push(latency / 2);
+            serverOffsets.push((latencyPlusOffset - (latency / 2)) / 1000);
             console.log("Performer latency: ", latency);
-            console.log("Server Offset: ", (serverLatency - (latency / 2)) / 1000);
+            console.log("Server Offset: ", (latencyPlusOffset - (latency / 2)) / 1000);
           });
           await timer(1000);
         }
-        let averageOffset = serverOffsets.sort().slice(1,-1).reduce((a, b) => a + b) / serverOffsets.length;
+        let averageOffset = serverOffsets.sort().slice(1,-1).reduce((a, b) => a + b) / (serverOffsets.length-2);
         setServerOffset(averageOffset);
+        socket.emit("report-latency", latencies);
       }
       await synchronize();
 
@@ -90,13 +93,13 @@ function App() {
         setTimeOrigin(start - window.performance.now());
 
         // volatile, so the packet will be discarded if the socket is not connected
-        socket.volatile.emit("ping", start, (serverLatency: number) => {
-          const latency = Date.now() - start;
-          //setServerOffset((serverLatency - (latency / 2)) / 1000);
-          console.log("Performer latency: ", latency);
-          console.log("Server Offset: ", (serverLatency - (latency / 2)) / 1000);
-          console.log("Variable Time Origin: ", start - window.performance.now());
-        });
+        // socket.volatile.emit("calculate-latency", start, (latencyPlusOffset: number) => {
+        //   const latency = Date.now() - start;
+        //   setServerOffset((latencyPlusOffset - (latency / 2)) / 1000);
+        //   console.log("Performer latency: ", latency);
+        //   console.log("Server Offset: ", (latencyPlusOffset - (latency / 2)) / 1000);
+        //   console.log("Variable Time Origin: ", start - window.performance.now());
+        // });
       }, "1m", 0);
 
       setConnectionState("Connected");
@@ -136,7 +139,7 @@ function App() {
 
     socketInstance.on('start', (targetTime: number, position: string = "0:0:0") => {
       console.log(`start`);
-      let time = getAbsoluteTime(targetTime, timeDiff);
+      let time = getAbsoluteTime(targetTime);
       console.log("Timeline Time: ", time);
       console.log("Target Time: ", targetTime);
       // console.log(Tone.getContext().now());
@@ -153,6 +156,10 @@ function App() {
       console.log("Backend Start Time: " + data);
     }
     ));
+
+    socketInstance.on("ping", (callback) => {
+      callback();
+    });
 
     // socketInstance.on("disconnect", (reason) => {
     //   setSocket(null);
@@ -181,7 +188,7 @@ function App() {
     };
   }, []);
 
-  function getAbsoluteTime(targetTime: number, timeDiff: number) {
+  function getAbsoluteTime(targetTime: number) {
     return (targetTime - timeOrigin - timeDiff - serverOffset) / 1000;
   }
 
@@ -190,7 +197,7 @@ function App() {
       <header className="App-header">
         <img src={logo} className="App-logo" alt="logo" />
         <p>
-          NETRONOME {isPlaying ? "Stop" : "Play"}
+          NETRONOME {isPlaying ? "(Stopped)" : "(Playing)"}
         </p>
         {/* <button onClick={() => togglePlayback()}>{isPlaying ? "Stop" : "Play"}</button> */}
         <button onClick={() => joinOrchestra()} disabled={connectionState === "Connecting"} className="Join-button">

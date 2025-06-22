@@ -23,7 +23,7 @@ let baselineDate = new Date();
 const orc = new Orchestra();
 
 var networkInterfaces = os.networkInterfaces();
-const ipAddress = Object.values(networkInterfaces).reduce((r: any, list: any) => r.concat(list.reduce((rr: any, i: any) => rr.concat(i.family==='IPv4' && !i.internal && i.address || []), [])), [])[0];
+const ipAddress = Object.values(networkInterfaces).reduce((r: any, list: any) => r.concat(list.reduce((rr: any, i: any) => rr.concat(i.family === 'IPv4' && !i.internal && i.address || []), [])), [])[0];
 
 // Namespaces
 var conductor = io.of('/conductor');
@@ -32,18 +32,22 @@ var performers = io.of('/');
 
 // Conductor Socket
 conductor.on('connection', (socket: Socket) => {
-  const conductor: Performer = { name: "Conductor", socket: socket, latency: 0 }
+  const conductor: Performer = { name: "Conductor", socket: socket, latencies: [] }
   orc.conductor = conductor;
   socket.emit("server-ip", ipAddress);
 
-  socket.on('conductor-start', (targetTime: number, position: string) => {
+  socket.on('conductor-start', (targetTime: number, position: string, cb: (newTargetTime: number) => void) => {
+    const newTargetTime = targetTime + orc.totalLatency;
     console.log('conductor-start');
-    performers.emit('start', targetTime, position);
+    performers.emit('start', newTargetTime, position);
+    cb(newTargetTime);
+    orc.isPlaying = true;
   });
 
   socket.on('conductor-stop', () => {
     console.log('conductor-stop');
-    performers.emit('stop')
+    performers.emit('stop');
+    orc.isPlaying = false;
   });
 
   // Handle incoming audio stream
@@ -57,24 +61,26 @@ conductor.on('connection', (socket: Socket) => {
 performers.on('connection', (socket: Socket) => {
   console.log('a user connected');
 
-  const performer: Performer = { name: `Performer #${orc.performers.length + 1}`, socket: socket, latency: 0 }
-  orc.addPerformer(performer);
+  const performer: Performer = { name: `Performer #${orc.performers.length + 1}`, socket: socket, latencies: [] }
   socket.emit("starttime", baselineDate);
 
-  socket.on("ping", (time: number, cb:(latency: number)=> void ) => {
-    const start = Date.now();
-    const latency = start - time;
+  socket.on("calculate-latency", (time: number, cb: (latency: number) => void) => {
+    const latencyPlusOffset = Date.now() - time;
     if (typeof cb === "function") {
-      cb(latency);
+      cb(latencyPlusOffset);
     }
-    performer.latency = latency;
-    console.log(performer.name, " LATENCY: ", latency);
+    // console.log(performer.name, " LATENCY: ", latencyPlusOffset);
   });
 
   // socket.conn.on("heartbeat", () => {
   //   // called after each round trip of the heartbeat mechanism
   //   console.log("heartbeat");
   // });
+
+  socket.on("report-latency", (latencies: number[]) => {
+    performer.latencies = latencies;
+    orc.addPerformer(performer);
+  })
 
   socket.on('connect_error', (err) => {
     console.log(err.message);
@@ -83,6 +89,19 @@ performers.on('connection', (socket: Socket) => {
   socket.on('disconnect', () => {
     console.log('user disconnected');
   });
+
+  setInterval(() => {
+    if (orc.isPlaying) {
+      const start = Date.now();
+      socket.emit("ping", () => {
+        // Normally this number would be divided by two to get one-way latency, but leaving doubled to account for changing latencies
+        const latency = (Date.now() - start)/2;
+        performer.latencies.push(latency);
+        performer.latencies.shift();
+        console.log(performer.name, " LATENCY: ", performer.latencies);
+      });
+    }
+  }, 10000);
 });
 
 server.listen(port, () => {

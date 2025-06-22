@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 import io, { Socket } from 'socket.io-client';
 import InputDropdown from './Inputs';
 import React from 'react';
-import {QRCodeSVG} from 'qrcode.react';
+import { QRCodeSVG } from 'qrcode.react';
 import { Connection, JoinButton } from './types';
 
 
@@ -162,7 +162,7 @@ function App() {
       timeDiff = window.performance.now();
       Tone.setContext(audioContext, true);
 
-      // This won't work if Conductor is on mobile
+      // This must be called on a button click for mobile compatibility
       await Tone.start();
 
       //create a synth and connect it to the main output (your speakers)
@@ -178,14 +178,15 @@ function App() {
   function togglePlayback(play: boolean, position: string = "0:0:0") {
     if (socket) {
       if (play) {
-        const targetTime = Date.now() + 1000;
-        socket.emit('conductor-start', targetTime, position);
-        let time = getAbsoluteTime(targetTime, timeDiff);
-        console.log("Timeline Time: ", time);
-        console.log("Target Time: ", targetTime);
-        //console.log(Tone.getContext().immediate());
-        Tone.getTransport().start(time);
-        setIsPlaying(true)
+        const targetTime = Date.now();
+        socket.emit('conductor-start', targetTime, position, (newTargetTime: number) => {
+          let time = getAbsoluteTime(newTargetTime);
+          console.log("Timeline Time: ", time);
+          console.log("Target Time: ", newTargetTime);
+          //console.log(Tone.getContext().immediate());
+          Tone.getTransport().start(time);
+          setIsPlaying(true)
+        });
       } else {
         socket.emit('conductor-stop');
         Tone.getTransport().stop();
@@ -218,7 +219,7 @@ function App() {
     }
   }
 
-  function getAbsoluteTime(targetTime: number, timeDiff: number) {
+  function getAbsoluteTime(targetTime: number) {
     return (targetTime - timeOrigin - timeDiff) / 1000;
   }
 
@@ -229,14 +230,14 @@ function App() {
         <p>
           NETRONOME (CONDUCTOR MODE)
         </p>
-          <button onClick={() => joinOrchestra()} disabled={connectionState === "Connecting"} className="Join-button">
-                    {JoinButton[connectionState]}
-                    <div className="spinner-3" hidden={(connectionState !== "Connecting")}></div>
-                  </button>
-          <button class="controls" onClick={() => togglePlayback(!isPlaying)} hidden={connectionState!== "Connected"} >{isPlaying ? "Stop" : "Play"}</button>
-          {/* <InputDropdown class="controls" inputs={audioInputs} setSelectedAudioId={setSelectedAudioId} isJoined={!isJoined} ></InputDropdown> */}
-          <p>Connect to Netronome here:</p>
-          <QRCodeSVG value={ipAddress} ></QRCodeSVG>
+        <button onClick={() => joinOrchestra()} disabled={connectionState === "Connecting"} className="Join-button">
+          {JoinButton[connectionState]}
+          <div className="spinner-3" hidden={(connectionState !== "Connecting")}></div>
+        </button>
+        <button class="controls" onClick={() => togglePlayback(!isPlaying)} hidden={connectionState !== "Connected"} >{isPlaying ? "Stop" : "Play"}</button>
+        {/* <InputDropdown class="controls" inputs={audioInputs} setSelectedAudioId={setSelectedAudioId} isJoined={!isJoined} ></InputDropdown> */}
+        <p>Connect to Netronome here:</p>
+        <QRCodeSVG value={ipAddress} ></QRCodeSVG>
       </header>
     </div>
   );
