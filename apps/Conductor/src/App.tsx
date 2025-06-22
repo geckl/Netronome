@@ -6,6 +6,8 @@ import { useState, useEffect } from 'react';
 import io, { Socket } from 'socket.io-client';
 import InputDropdown from './Inputs';
 import React from 'react';
+import {QRCodeSVG} from 'qrcode.react';
+import { Connection, JoinButton } from './types';
 
 
 // Record monotonic clock's initial value
@@ -17,23 +19,24 @@ let timeDiff = 0;
 
 function App() {
 
+  const [connectionState, setConnectionState] = useState<Connection>("Disconnected");
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isPlaying, setIsPlaying] = useState(false)
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]); //MediaDeviceInfo
   const [selectedAudioId, setSelectedAudioId] = useState(null);
+  const [timeOrigin, setTimeOrigin] = useState(window.performance.timeOrigin);
+  const [ipAddress, setIpAddress] = useState("");
 
+  // useEffect(() => {
+  //   console.log("static time origin: ", window.performance.timeOrigin, " variable time origin: ", timeOrigin);
+  // }, [timeOrigin]);
 
-  useEffect(async () => {
+  useEffect(() => {
+    console.log("static time origin: ", window.performance.timeOrigin, " variable time origin: ", timeOrigin);
+  }, [ipAddress]);
 
-    const audioContext = new Tone.Context();
-    //baseTime = Date.now();
-    timeDiff = window.performance.now();
-    Tone.setContext(audioContext, true);
-
-    // This won't work if Conductor is on mobile
-    await Tone.start();
-
-    const socketInstance = io('/conductor',{
+  useEffect(() => {
+    const socketInstance = io('/conductor', {
       transports: ['websocket'],
       upgrade: false
     });
@@ -49,23 +52,28 @@ function App() {
     //   togglePlayback(true);
     // });
 
+    socketInstance.on("server-ip", (ipAddress: string) => {
+      console.log("Server IP Address: ", ipAddress);
+      setIpAddress(`http://${ipAddress}:3000`);
+    })
+
     socketInstance.on("starttime", (data: Date) => {
       console.log("Backend Start Time: ");
       console.log(new Date(data));
     }
     );
 
-    socketInstance.on('audioStream', (audioData) => {
-      var newData = audioData.split(";");
-      newData[0] = "data:audio/ogg;";
-      newData = newData[0] + newData[1];
+    // socketInstance.on('audioStream', (audioData) => {
+    //   var newData = audioData.split(";");
+    //   newData[0] = "data:audio/ogg;";
+    //   newData = newData[0] + newData[1];
 
-      var audio = new Audio(newData);
-      if (!audio || document.hidden) {
-        return;
-      }
-      audio.play();
-    });
+    //   var audio = new Audio(newData);
+    //   if (!audio || document.hidden) {
+    //     return;
+    //   }
+    //   audio.play();
+    // });
 
     // socketInstance.on('ping', function(ms) {
     //   console.log(ms)
@@ -73,20 +81,15 @@ function App() {
     //   //console.log(latency);
     // });
 
-    //create a synth and connect it to the main output (your speakers)
-    var player = new Tone.Player(Woodblock).toDestination();
-    Tone.getTransport().scheduleRepeat((time) => {
-      player.start(time);
-    }, "4n", 0);
-
     getDevices();
 
     // client-side
     setInterval(() => {
       const start = Date.now();
+      setTimeOrigin(start - window.performance.now());
 
       // volatile, so the packet will be discarded if the socket is not connected
-      socketInstance.volatile.emit("ping", () => {
+      socketInstance.volatile.emit("ping", start, () => {
         const latency = Date.now() - start;
         console.log("Conductor latency: ", latency);
       });
@@ -147,6 +150,31 @@ function App() {
     return;
   }, [selectedAudioId]);
 
+  async function joinOrchestra() {
+    if (connectionState === "Connected") {
+      setConnectionState("Disconnected");
+    } else {
+      console.log("Join Orchestra!");
+      setConnectionState("Connecting")
+
+      const audioContext = new Tone.Context();
+      //baseTime = Date.now();
+      timeDiff = window.performance.now();
+      Tone.setContext(audioContext, true);
+
+      // This won't work if Conductor is on mobile
+      await Tone.start();
+
+      //create a synth and connect it to the main output (your speakers)
+      var player = new Tone.Player(Woodblock).toDestination();
+      Tone.getTransport().scheduleRepeat((time) => {
+        player.start(time);
+      }, "4n", 0);
+
+      setConnectionState("Connected");
+    }
+  }
+
   function togglePlayback(play: boolean, position: string = "0:0:0") {
     if (socket) {
       if (play) {
@@ -154,6 +182,7 @@ function App() {
         socket.emit('conductor-start', targetTime, position);
         let time = getAbsoluteTime(targetTime, timeDiff);
         console.log("Timeline Time: ", time);
+        console.log("Target Time: ", targetTime);
         //console.log(Tone.getContext().immediate());
         Tone.getTransport().start(time);
         setIsPlaying(true)
@@ -190,8 +219,7 @@ function App() {
   }
 
   function getAbsoluteTime(targetTime: number, timeDiff: number) {
-    return (targetTime - window.performance.timeOrigin - timeDiff) / 1000;
-    //return (targetTime - );
+    return (targetTime - timeOrigin - timeDiff) / 1000;
   }
 
   return (
@@ -201,8 +229,14 @@ function App() {
         <p>
           NETRONOME (CONDUCTOR MODE)
         </p>
-        <button onClick={() => togglePlayback(!isPlaying)}>{isPlaying ? "Stop" : "Play"}</button>
-        <InputDropdown inputs={audioInputs} setSelectedAudioId={setSelectedAudioId} ></InputDropdown>
+          <button onClick={() => joinOrchestra()} disabled={connectionState === "Connecting"} className="Join-button">
+                    {JoinButton[connectionState]}
+                    <div className="spinner-3" hidden={(connectionState !== "Connecting")}></div>
+                  </button>
+          <button class="controls" onClick={() => togglePlayback(!isPlaying)} hidden={connectionState!== "Connected"} >{isPlaying ? "Stop" : "Play"}</button>
+          {/* <InputDropdown class="controls" inputs={audioInputs} setSelectedAudioId={setSelectedAudioId} isJoined={!isJoined} ></InputDropdown> */}
+          <p>Connect to Netronome here:</p>
+          <QRCodeSVG value={ipAddress} ></QRCodeSVG>
       </header>
     </div>
   );

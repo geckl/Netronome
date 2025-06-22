@@ -11,7 +11,7 @@ function InputDropdown(props) {
     }
 
     return (
-        <label>
+        <label hidden={props.isJoined}>
             {"Select an Audio Source:   "}
             <select
                 name="Audio Source"

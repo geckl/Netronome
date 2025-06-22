@@ -22,6 +22,9 @@ app.use('/conductor', express.static(path.join(__dirname, '../../Conductor/build
 let baselineDate = new Date();
 const orc = new Orchestra();
 
+var networkInterfaces = os.networkInterfaces();
+const ipAddress = Object.values(networkInterfaces).reduce((r: any, list: any) => r.concat(list.reduce((rr: any, i: any) => rr.concat(i.family==='IPv4' && !i.internal && i.address || []), [])), [])[0];
+
 // Namespaces
 var conductor = io.of('/conductor');
 var performers = io.of('/');
@@ -31,6 +34,7 @@ var performers = io.of('/');
 conductor.on('connection', (socket: Socket) => {
   const conductor: Performer = { name: "Conductor", socket: socket, latency: 0 }
   orc.conductor = conductor;
+  socket.emit("server-ip", ipAddress);
 
   socket.on('conductor-start', (targetTime: number, position: string) => {
     console.log('conductor-start');
@@ -57,11 +61,11 @@ performers.on('connection', (socket: Socket) => {
   orc.addPerformer(performer);
   socket.emit("starttime", baselineDate);
 
-  socket.on("ping", (time: number, cb:()=> void ) => {
+  socket.on("ping", (time: number, cb:(latency: number)=> void ) => {
     const start = Date.now();
     const latency = start - time;
     if (typeof cb === "function") {
-      cb();
+      cb(latency);
     }
     performer.latency = latency;
     console.log(performer.name, " LATENCY: ", latency);
@@ -83,9 +87,8 @@ performers.on('connection', (socket: Socket) => {
 
 server.listen(port, () => {
   console.log('listening on *:3000');
-  var networkInterfaces = os.networkInterfaces();
-  if (networkInterfaces['en0']) {
-    console.log("Connect to Metronome here: http://" + networkInterfaces['en0'][0].address + ":3000");
+  if (ipAddress) {
+    console.log("Connect to Metronome here: http://" + ipAddress + ":3000");
   } else {
     console.log("ERROR: NO NETWORK CONNECTION FOUND")
   }
