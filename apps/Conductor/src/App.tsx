@@ -4,10 +4,14 @@ import * as Tone from "tone";
 import Woodblock from './sounds/woodblock.wav'
 import { useState, useEffect } from 'react';
 import io, { Socket } from 'socket.io-client';
-import InputDropdown from './Inputs';
+import InputDropdown from './components/Inputs';
 import React from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Connection, JoinButton } from './types';
+import { Connection, JoinButton, Performer } from './types';
+import { Button, Spacer} from "@chakra-ui/react"
+import Demo from "./components/Connections/ConnectionsDrawer"
+import ConnectionsDrawer from './components/Connections/ConnectionsDrawer';
+
 
 
 // Record monotonic clock's initial value
@@ -26,6 +30,7 @@ function App() {
   const [selectedAudioId, setSelectedAudioId] = useState(null);
   const [timeOrigin, setTimeOrigin] = useState(window.performance.timeOrigin);
   const [ipAddress, setIpAddress] = useState("");
+  const [members, setMembers] = useState<Performer>([]);
 
   // useEffect(() => {
   //   console.log("static time origin: ", window.performance.timeOrigin, " variable time origin: ", timeOrigin);
@@ -62,6 +67,11 @@ function App() {
       console.log(new Date(data));
     }
     );
+
+    socketInstance.on("update-members", (members: Performer) => {
+      setMembers(members);
+      console.log(members);
+    })
 
     // socketInstance.on('audioStream', (audioData) => {
     //   var newData = audioData.split(";");
@@ -230,14 +240,16 @@ function App() {
         <p>
           NETRONOME (CONDUCTOR MODE)
         </p>
-        <button onClick={() => joinOrchestra()} disabled={connectionState === "Connecting"} className="Join-button">
+        <Button onClick={() => joinOrchestra()} disabled={connectionState === "Connecting"} className="Join-button" bg="brand.300">
           {JoinButton[connectionState]}
           <div className="spinner-3" hidden={(connectionState !== "Connecting")}></div>
-        </button>
-        <button class="controls" onClick={() => togglePlayback(!isPlaying)} hidden={connectionState !== "Connected"} >{isPlaying ? "Stop" : "Play"}</button>
+        </Button>
+        <Button class="controls" onClick={() => togglePlayback(!isPlaying)} hidden={connectionState !== "Connected"} >{isPlaying ? "Stop" : "Play"}</Button>
         {/* <InputDropdown class="controls" inputs={audioInputs} setSelectedAudioId={setSelectedAudioId} isJoined={!isJoined} ></InputDropdown> */}
         <p>Connect to Netronome here:</p>
         <QRCodeSVG value={ipAddress} ></QRCodeSVG>
+        <Spacer />
+        <ConnectionsDrawer members={members}></ConnectionsDrawer>
       </header>
     </div>
   );

@@ -10,7 +10,8 @@ import os from "os";
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import Orchestra from "./orchestra.js";
-import { Performer } from "./types.js";
+import { Performer, User } from "./types.js";
+import { UUID } from "crypto";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -19,8 +20,9 @@ app.use(express.static(path.join(__dirname, '../../Performer/build')));
 app.use('/conductor', express.static(path.join(__dirname, '../../Conductor/build')));
 
 
-let baselineDate = new Date();
+// let baselineDate = new Date();
 const orc = new Orchestra();
+const members: Performer[] = [];
 
 var networkInterfaces = os.networkInterfaces();
 const ipAddress = Object.values(networkInterfaces).reduce((r: any, list: any) => r.concat(list.reduce((rr: any, i: any) => rr.concat(i.family === 'IPv4' && !i.internal && i.address || []), [])), [])[0];
@@ -32,7 +34,8 @@ var performers = io.of('/');
 
 // Conductor Socket
 conductor.on('connection', (socket: Socket) => {
-  const conductor: Performer = { name: "Conductor", socket: socket, latencies: [] }
+  let uuid: UUID = crypto.randomUUID();
+  const conductor: Performer = { id: uuid, name: "Conductor", status: "Disconnected", latencies: [] }
   orc.conductor = conductor;
   socket.emit("server-ip", ipAddress);
 
@@ -61,8 +64,12 @@ conductor.on('connection', (socket: Socket) => {
 performers.on('connection', (socket: Socket) => {
   console.log('a user connected');
 
-  const performer: Performer = { name: `Performer #${orc.performers.length + 1}`, socket: socket, latencies: [] }
-  socket.emit("starttime", baselineDate);
+  let uuid: UUID = crypto.randomUUID();
+  const performer: Performer = { id: uuid, name: `Performer #${members.length + 1}`, status: "Disconnected", latencies: [] }
+  members.push(performer);
+  conductor.emit("update-members", members);
+  console.log("user connected: ", performer);
+  // socket.emit("starttime", baselineDate);
 
   socket.on("calculate-latency", (time: number, cb: (latency: number) => void) => {
     const latencyPlusOffset = Date.now() - time;
@@ -70,6 +77,7 @@ performers.on('connection', (socket: Socket) => {
       cb(latencyPlusOffset);
     }
     // console.log(performer.name, " LATENCY: ", latencyPlusOffset);
+    performer.status = "Connecting";
   });
 
   // socket.conn.on("heartbeat", () => {
@@ -77,9 +85,12 @@ performers.on('connection', (socket: Socket) => {
   //   console.log("heartbeat");
   // });
 
-  socket.on("report-latency", (latencies: number[]) => {
+  socket.on("join-orchestra", (latencies: number[]) => {
     performer.latencies = latencies;
+    performer.status = "Connected"
     orc.addPerformer(performer);
+    conductor.emit("update-members", members);
+    console.log("user joined orchestra: ", performer);
   })
 
   socket.on('connect_error', (err) => {
@@ -87,7 +98,11 @@ performers.on('connection', (socket: Socket) => {
   })
 
   socket.on('disconnect', () => {
-    console.log('user disconnected');
+    orc.removePerformer(performer);
+    let performerIndex = members.map(c => c.id).indexOf(performer.id)
+    members.splice(performerIndex, 1);
+    conductor.emit("update-members", members);
+    console.log("user disconnected: ", members);
   });
 
   setInterval(() => {
@@ -100,6 +115,7 @@ performers.on('connection', (socket: Socket) => {
         performer.latencies.shift();
         console.log(performer.name, " LATENCY: ", performer.latencies);
       });
+      // conductor.emit("update-members", memebers);
     }
   }, 10000);
 });

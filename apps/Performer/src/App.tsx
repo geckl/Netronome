@@ -77,7 +77,7 @@ function App() {
         }
         let averageOffset = serverOffsets.sort().slice(1,-1).reduce((a, b) => a + b) / (serverOffsets.length-2);
         setServerOffset(averageOffset);
-        socket.emit("report-latency", latencies);
+        socket.emit("join-orchestra", latencies);
       }
       await synchronize();
 
