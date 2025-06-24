@@ -107,9 +107,9 @@ function App() {
     //   });
     // }, 5000);
 
-    setInterval(() => {
-      console.log(serverOffset.current);
-    }, 1000);
+    // setInterval(() => {
+    //   console.log(serverOffset.current);
+    // }, 1000);
 
     return () => {
       if (socketInstance) {
@@ -187,10 +187,10 @@ function App() {
 
       async function synchronize() {
         for (let i = 0; i < 5; i++) {
-          const start = window.performance.now();
+          const start = Tone.immediate() * 1000;
           // volatile, so the packet will be discarded if the socket is not connected
           socket.volatile.emit("calculate-latency", start, (latencyPlusOffset: number) => {
-            const latency = window.performance.now() - start;
+            const latency = (Tone.immediate() * 1000) - start;
             latencies.push(latency / 2);
             serverOffsets.push((latencyPlusOffset - (latency / 2)));
             console.log("Performer latency: ", latency);
@@ -210,6 +210,7 @@ function App() {
       var player = new Tone.Player(Woodblock).toDestination();
       Tone.getTransport().scheduleRepeat((time) => {
         player.start(time);
+        // console.log(Tone.getTransport().position);
       }, "4n", 0);
 
       setConnectionState("Connected");
@@ -219,10 +220,10 @@ function App() {
   function togglePlayback(play: boolean, position: string = "0:0:0") {
     if (socket) {
       if (play) {
-        const targetTime = performance.now();
+        const targetTime = Tone.immediate() * 1000;
         console.log("Target Time: ", targetTime)
         socket.emit('conductor-start', targetTime + serverOffset.current, position, (newTargetTime: number) => {
-          console.log(targetTime, "->", newTargetTime);
+          console.log(targetTime, "->", newTargetTime - serverOffset.current);
           let time = getAbsoluteTime(newTargetTime - serverOffset.current);
           console.log("Timeline Time: ", time);
           //console.log("Target Time: ", newTargetTime - serverOffset.current);
@@ -263,7 +264,7 @@ function App() {
   }
 
   function getAbsoluteTime(targetTime: number) {
-    return (targetTime - timeDiff) / 1000;
+    return (targetTime / 1000);
   }
 
   return (

@@ -30,6 +30,9 @@ function App() {
   // useEffect(() => {
   // }, []);
 
+  // console.log("State: ", Tone.getContext().state);
+  // console.log("Current Time: ", Tone.getContext().currentTime);
+
   useEffect(() => {
     console.log("Variable Time Origin: ", timeOrigin);
   }, [timeOrigin]);
@@ -68,16 +71,21 @@ function App() {
 
       // This must be called on a button click for browser compatibility
       await Tone.start();
+      // let context = Tone.getContext();
+      // console.log("Latency Hint: ", context.latencyHint);
+      // console.log("Sample Rate: ", context.rawContext.sampleRate);
+      // console.log("Look Ahead: ", context.lookAhead);
+      // console.log("State: ", context.state);
 
       let latencies: number[] = [];
       let serverOffsets: number[] = [];
 
       async function synchronize() {
         for (let i = 0; i < 5; i++) {
-          const start = window.performance.now();
+          const start = Tone.immediate() * 1000;
           // volatile, so the packet will be discarded if the socket is not connected
           socket.volatile.emit("calculate-latency", start, (latencyPlusOffset: number) => {
-            const latency = window.performance.now() - start;
+            const latency = (Tone.immediate() * 1000) - start;
             latencies.push(latency / 2);
             serverOffsets.push((latencyPlusOffset - (latency / 2)));
             console.log("Performer latency: ", latency);
@@ -99,6 +107,7 @@ function App() {
       var player = new Tone.Player(Woodblock).toDestination();
       Tone.getTransport().scheduleRepeat((time) => {
         player.start(time);
+        // console.log(Tone.getTransport().position);
       }, "4n", 0);
 
       // Tone.getTransport().scheduleRepeat((time) => {
@@ -200,9 +209,9 @@ function App() {
     //   });
     // }, 5000);
 
-    setInterval(() => {
-      console.log(serverOffset.current);
-    }, 1000);
+    // setInterval(() => {
+    //   console.log(serverOffset.current);
+    // }, 1000);
 
     return () => {
       if (socketInstance) {
@@ -212,7 +221,7 @@ function App() {
   }, []);
 
   function getAbsoluteTime(targetTime: number) {
-    return (targetTime - timeDiff) / 1000;
+    return (targetTime / 1000);
   }
 
   return (
