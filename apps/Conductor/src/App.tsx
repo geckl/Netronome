@@ -2,15 +2,16 @@ import logo from './logo.svg';
 import './App.css';
 import * as Tone from "tone";
 import Woodblock from './sounds/woodblock.wav'
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import io, { Socket } from 'socket.io-client';
 import InputDropdown from './components/Inputs';
 import React from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Connection, JoinButton, Performer } from './types';
-import { Button, HStack, Spacer, VStack} from "@chakra-ui/react"
+import { Button, HStack, Spacer, VStack } from "@chakra-ui/react"
 import Demo from "./components/Connections/ConnectionsDrawer"
 import ConnectionsDrawer from './components/Connections/ConnectionsDrawer';
+import { timer } from './util';
 
 
 
@@ -31,6 +32,7 @@ function App() {
   const [timeOrigin, setTimeOrigin] = useState(window.performance.timeOrigin);
   const [ipAddress, setIpAddress] = useState("");
   const [members, setMembers] = useState<Performer>([]);
+  const serverOffset = useRef<number>(0);
 
   // useEffect(() => {
   //   console.log("static time origin: ", window.performance.timeOrigin, " variable time origin: ", timeOrigin);
@@ -93,17 +95,21 @@ function App() {
 
     getDevices();
 
-    // client-side
-    setInterval(() => {
-      const start = Date.now();
-      //setTimeOrigin(start - window.performance.now());
+    // // client-side
+    // setInterval(() => {
+    //   const start = window.performance.now();
+    //   //setTimeOrigin(start - window.performance.now());
 
-      // volatile, so the packet will be discarded if the socket is not connected
-      socketInstance.volatile.emit("ping", start, () => {
-        const latency = window.performance.now() - start;
-        console.log("Conductor latency: ", latency);
-      });
-    }, 5000);
+    //   // volatile, so the packet will be discarded if the socket is not connected
+    //   socketInstance.volatile.emit("ping", start, () => {
+    //     const latency = window.performance.now() - start;
+    //     console.log("Conductor latency: ", latency);
+    //   });
+    // }, 5000);
+
+    setInterval(() => {
+      console.log(serverOffset.current);
+    }, 1000);
 
     return () => {
       if (socketInstance) {
@@ -173,8 +179,32 @@ function App() {
       Tone.setContext(audioContext, true);
       Tone.getTransport().bpm.value = 60;
 
-      // This must be called on a button click for mobile compatibility
+      // This must be called on a button click for browser compatibility
       await Tone.start();
+
+      let latencies: number[] = [];
+      let serverOffsets: number[] = [];
+
+      async function synchronize() {
+        for (let i = 0; i < 5; i++) {
+          const start = window.performance.now();
+          // volatile, so the packet will be discarded if the socket is not connected
+          socket.volatile.emit("calculate-latency", start, (latencyPlusOffset: number) => {
+            const latency = window.performance.now() - start;
+            latencies.push(latency / 2);
+            serverOffsets.push((latencyPlusOffset - (latency / 2)));
+            console.log("Performer latency: ", latency);
+            console.log("Server Offset: ", (latencyPlusOffset - (latency / 2)));
+          });
+          await timer(1000);
+        }
+        let middleOffsets = serverOffsets.sort().slice(1, -1);
+        let meanOffset = middleOffsets.reduce((a, b) => a + b) / (middleOffsets.length);
+        console.log("Mean: ", meanOffset);
+        serverOffset.current = meanOffset;
+        socket.emit("join-orchestra", latencies);
+      }
+      await synchronize();
 
       //create a synth and connect it to the main output (your speakers)
       var player = new Tone.Player(Woodblock).toDestination();
@@ -189,12 +219,13 @@ function App() {
   function togglePlayback(play: boolean, position: string = "0:0:0") {
     if (socket) {
       if (play) {
-        const targetTime = Date.now();
-        socket.emit('conductor-start', targetTime, position, (newTargetTime: number) => {
+        const targetTime = performance.now();
+        console.log("Target Time: ", targetTime)
+        socket.emit('conductor-start', targetTime + serverOffset.current, position, (newTargetTime: number) => {
           console.log(targetTime, "->", newTargetTime);
-          let time = getAbsoluteTime(newTargetTime);
+          let time = getAbsoluteTime(newTargetTime - serverOffset.current);
           console.log("Timeline Time: ", time);
-          console.log("Target Time: ", newTargetTime);
+          //console.log("Target Time: ", newTargetTime - serverOffset.current);
           //console.log(Tone.getContext().immediate());
           Tone.getTransport().start(time);
           setIsPlaying(true)
@@ -232,7 +263,7 @@ function App() {
   }
 
   function getAbsoluteTime(targetTime: number) {
-    return (targetTime - timeOrigin - timeDiff) / 1000;
+    return (targetTime - timeDiff) / 1000;
   }
 
   return (
@@ -240,19 +271,19 @@ function App() {
       <header className="App-header">
         <img src={logo} className="App-logo" alt="logo" />
         <VStack>
-        <ConnectionsDrawer members={members}></ConnectionsDrawer>
-        <p>
-          NETRONOME (CONDUCTOR MODE)
-        </p>
-        <Button onClick={() => joinOrchestra()} disabled={connectionState === "Connecting"} className="Join-button" bg="brand.300">
-          {JoinButton[connectionState]}
-          <div className="spinner-3" hidden={(connectionState !== "Connecting")}></div>
-        </Button>
-        <Button class="controls" bg="brand.700" onClick={() => togglePlayback(!isPlaying)} hidden={connectionState !== "Connected"} >{isPlaying ? "Stop" : "Play"}</Button>
-        {/* <InputDropdown class="controls" inputs={audioInputs} setSelectedAudioId={setSelectedAudioId} isJoined={!isJoined} ></InputDropdown> */}
-        <p>Connect to Netronome here:</p>
-        <QRCodeSVG value={ipAddress} ></QRCodeSVG>
-        <Spacer />
+          <ConnectionsDrawer members={members}></ConnectionsDrawer>
+          <p>
+            NETRONOME (CONDUCTOR MODE)
+          </p>
+          <Button onClick={() => joinOrchestra()} disabled={connectionState === "Connecting"} className="Join-button" bg="brand.300">
+            {JoinButton[connectionState]}
+            <div className="spinner-3" hidden={(connectionState !== "Connecting")}></div>
+          </Button>
+          <Button class="controls" bg="brand.700" onClick={() => togglePlayback(!isPlaying)} hidden={connectionState !== "Connected"} >{isPlaying ? "Stop" : "Play"}</Button>
+          {/* <InputDropdown class="controls" inputs={audioInputs} setSelectedAudioId={setSelectedAudioId} isJoined={!isJoined} ></InputDropdown> */}
+          <p>Connect to Netronome here:</p>
+          <QRCodeSVG value={ipAddress} ></QRCodeSVG>
+          <Spacer />
         </VStack>
       </header>
     </div>

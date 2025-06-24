@@ -29,18 +29,42 @@ var networkInterfaces = os.networkInterfaces();
 const ipAddress = Object.values(networkInterfaces).reduce((r: any, list: any) => r.concat(list.reduce((rr: any, i: any) => rr.concat(i.family === 'IPv4' && !i.internal && i.address || []), [])), [])[0];
 
 // Namespaces
-var conductor = io.of('/conductor');
+var conductors = io.of('/conductor');
 var performers = io.of('/');
 
 
 // Conductor Socket
-conductor.on('connection', (socket: Socket) => {
+conductors.on('connection', (socket: Socket) => {
   let uuid: UUID = crypto.randomUUID();
   const conductor: Performer = { id: uuid, name: "Conductor", status: "Disconnected", latencies: [] }
   orc.conductor = conductor;
   socket.emit("server-ip", ipAddress);
 
+  socket.on("request-join", () => {
+    conductor.status = "Connecting";
+  });
+
+  socket.on("calculate-latency", (time: number, cb: (latency: number) => void) => {
+    const latencyPlusOffset = performance.now() - time;
+    //const latencyPlusOffset = Date.now() - time;
+    cb(latencyPlusOffset);
+  });
+
+  // socket.conn.on("heartbeat", () => {
+  //   // called after each round trip of the heartbeat mechanism
+  //   console.log("heartbeat");
+  // });
+
+  socket.on("join-orchestra", (latencies: number[]) => {
+    conductor.latencies = latencies;
+    conductor.status = "Connected"
+    // orc.addPerformer(conductor);
+    // conductors.emit("update-members", members);
+    console.log("conductor joined orchestra: ", conductor);
+  });
+
   socket.on('conductor-start', (targetTime: number, position: string, cb: (newTargetTime: number) => void) => {
+    console.log("Target Time: ", targetTime);
     console.log("Total Latency: ", orc.totalLatency);
     const newTargetTime = targetTime + orc.totalLatency;
     console.log('conductor-start');
@@ -70,17 +94,18 @@ performers.on('connection', (socket: Socket) => {
   const performer: Performer = { id: uuid, name: `Performer #${membersCounter + 1}`, status: "Disconnected", latencies: [] }
   members.push(performer);
   membersCounter++;
-  conductor.emit("update-members", members);
+  conductors.emit("update-members", members);
   console.log("user connected: ", performer);
   // socket.emit("starttime", baselineDate);
 
   socket.on("request-join", () => {
     performer.status = "Connecting";
-    conductor.emit("update-members", members);
+    conductors.emit("update-members", members);
   });
 
   socket.on("calculate-latency", (time: number, cb: (latency: number) => void) => {
-    const latencyPlusOffset = Date.now() - time;
+    const latencyPlusOffset = performance.now() - time;
+    //const latencyPlusOffset = Date.now() - time;
     cb(latencyPlusOffset);
   });
 
@@ -93,7 +118,7 @@ performers.on('connection', (socket: Socket) => {
     performer.latencies = latencies;
     performer.status = "Connected"
     orc.addPerformer(performer);
-    conductor.emit("update-members", members);
+    conductors.emit("update-members", members);
     console.log("user joined orchestra: ", performer);
   });
 
@@ -102,7 +127,7 @@ performers.on('connection', (socket: Socket) => {
       orc.removePerformer(performer);
     }
     performer.status = "Disconnected"
-    conductor.emit("update-members", members);
+    conductors.emit("update-members", members);
     console.log("user left orchestra: ", performer);
   });
 
@@ -116,21 +141,21 @@ performers.on('connection', (socket: Socket) => {
     }
     let performerIndex = members.map(c => c.id).indexOf(performer.id)
     members.splice(performerIndex, 1);
-    conductor.emit("update-members", members);
+    conductors.emit("update-members", members);
     console.log("user disconnected: ", members);
   });
 
   setInterval(() => {
     if (orc.isPlaying) {
-      const start = Date.now();
+      const start = performance.now();
       socket.emit("ping", () => {
         // Normally this number would be divided by two to get one-way latency, but leaving doubled to account for changing latencies
-        const latency = (Date.now() - start) / 2;
+        const latency = (performance.now() - start) / 2;
         performer.latencies.push(latency);
         performer.latencies.shift();
         console.log(performer.name, " LATENCY: ", performer.latencies);
       });
-      // conductor.emit("update-members", memebers);
+      // conductors.emit("update-members", memebers);
     }
   }, 10000);
 });

@@ -25,7 +25,7 @@ function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   // const [currentTime, setCurrentTime] = useState(0);
   const [timeOrigin, setTimeOrigin] = useState(window.performance.timeOrigin);
-  const [serverOffset, setServerOffset] = useState(0);
+  const serverOffset = useRef<number>(0);
 
   // useEffect(() => {
   // }, []);
@@ -33,10 +33,6 @@ function App() {
   useEffect(() => {
     console.log("Variable Time Origin: ", timeOrigin);
   }, [timeOrigin]);
-
-  useEffect(() => {
-    console.log("Server Offset: ", serverOffset);
-  }, [serverOffset]);
 
   useEffect(() => {
     console.log("State: ", connectionState);
@@ -69,6 +65,8 @@ function App() {
       timeDiff = window.performance.now();
       Tone.setContext(audioContext, true);
       Tone.getTransport().bpm.value = 60;
+
+      // This must be called on a button click for browser compatibility
       await Tone.start();
 
       let latencies: number[] = [];
@@ -76,10 +74,10 @@ function App() {
 
       async function synchronize() {
         for (let i = 0; i < 5; i++) {
-          const start = Date.now();
+          const start = window.performance.now();
           // volatile, so the packet will be discarded if the socket is not connected
           socket.volatile.emit("calculate-latency", start, (latencyPlusOffset: number) => {
-            const latency = Date.now() - start;
+            const latency = window.performance.now() - start;
             latencies.push(latency / 2);
             serverOffsets.push((latencyPlusOffset - (latency / 2)));
             console.log("Performer latency: ", latency);
@@ -89,7 +87,8 @@ function App() {
         }
         let middleOffsets = serverOffsets.sort().slice(1, -1);
         let meanOffset = middleOffsets.reduce((a, b) => a + b) / (middleOffsets.length);
-        setServerOffset(meanOffset);
+        console.log("Mean: ", meanOffset);
+        serverOffset.current = meanOffset;
         socket.emit("join-orchestra", latencies);
       }
       await synchronize();
@@ -102,19 +101,19 @@ function App() {
         player.start(time);
       }, "4n", 0);
 
-      Tone.getTransport().scheduleRepeat((time) => {
-        const start = Date.now();
-        //setTimeOrigin(start - window.performance.now());
+      // Tone.getTransport().scheduleRepeat((time) => {
+      //   const start = window.performance.now();
+      //   //setTimeOrigin(start - window.performance.now());
 
-        // volatile, so the packet will be discarded if the socket is not connected
-        // socket.volatile.emit("calculate-latency", start, (latencyPlusOffset: number) => {
-        //   const latency = Date.now() - start;
-        //   setServerOffset((latencyPlusOffset - (latency / 2)) / 1000);
-        //   console.log("Performer latency: ", latency);
-        //   console.log("Server Offset: ", (latencyPlusOffset - (latency / 2)) / 1000);
-        //   console.log("Variable Time Origin: ", start - window.performance.now());
-        // });
-      }, "1m", 0);
+      //   // volatile, so the packet will be discarded if the socket is not connected
+      //   // socket.volatile.emit("calculate-latency", start, (latencyPlusOffset: number) => {
+      //   //   const latency = Date.now() - start;
+      //   //   setServerOffset((latencyPlusOffset - (latency / 2)) / 1000);
+      //   //   console.log("Performer latency: ", latency);
+      //   //   console.log("Server Offset: ", (latencyPlusOffset - (latency / 2)) / 1000);
+      //   //   console.log("Variable Time Origin: ", start - window.performance.now());
+      //   // });
+      // }, "1m", 0);
 
       setIsLoading(false);
 
@@ -154,9 +153,9 @@ function App() {
     socketInstance.on('start', (targetTime: number, position: string = "0:0:0") => {
       if (connectionState.current === "Connected") {
         console.log(`start`);
-        let time = getAbsoluteTime(targetTime);
+        let time = getAbsoluteTime(targetTime - serverOffset.current);
         console.log("Timeline Time: ", time);
-        console.log("Target Time: ", targetTime);
+        console.log("Target Time: ", targetTime - serverOffset.current);
         // console.log(Tone.getContext().now());
         togglePlayback(true, time, position);
       }
@@ -201,9 +200,9 @@ function App() {
     //   });
     // }, 5000);
 
-    // setInterval(() => {
-    //   console.log(connectionState);
-    // }, 1000);
+    setInterval(() => {
+      console.log(serverOffset.current);
+    }, 1000);
 
     return () => {
       if (socketInstance) {
@@ -213,7 +212,7 @@ function App() {
   }, []);
 
   function getAbsoluteTime(targetTime: number) {
-    return (targetTime - timeOrigin - timeDiff - serverOffset) / 1000 ;
+    return (targetTime - timeDiff) / 1000;
   }
 
   return (
