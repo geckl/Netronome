@@ -5,6 +5,7 @@ import {
   Status,
   Portal,
   VStack,
+  Spacer,
 } from "@chakra-ui/react"
 import React, { useRef } from "react"
 import ConnectionsTable from "./ConnectionsTable"
@@ -13,9 +14,9 @@ import { Performer } from "../../types"
 const ConnectionsDrawer = ({members}: {members: Performer[]}) => {
   const ref = useRef<HTMLInputElement>(null)
   return (
-    <Drawer.Root initialFocusEl={() => ref.current}>
+    <Drawer.Root initialFocusEl={() => ref.current} size="md">
       <Drawer.Trigger asChild>
-        <Button size="sm" bg="brand.500">
+        <Button size="sm" bg="brand.500" position={"absolute"} right={1} top={1}>
           Performers
         </Button>
       </Drawer.Trigger>
@@ -24,7 +25,7 @@ const ConnectionsDrawer = ({members}: {members: Performer[]}) => {
         <Drawer.Positioner>
           <Drawer.Content>
             <Drawer.Header>
-              <Drawer.Title>Drawer Title</Drawer.Title>
+              <Drawer.Title>Performers</Drawer.Title>
             </Drawer.Header>
             <Drawer.Body>
               <ConnectionsTable members={members}></ConnectionsTable>
@@ -34,7 +35,7 @@ const ConnectionsDrawer = ({members}: {members: Performer[]}) => {
               </Stack> */}
             </Drawer.Body>
             <Drawer.Footer>
-            <VStack gap="6">
+            <VStack gap="1">
                 <Status.Root colorPalette="red">
                     <Status.Indicator />
                     Disconnected
@@ -48,6 +49,7 @@ const ConnectionsDrawer = ({members}: {members: Performer[]}) => {
                     Connected
                 </Status.Root>
             </VStack>
+            <Spacer />
               <Button variant="outline">Cancel</Button>
               <Button>Save</Button>
             </Drawer.Footer>

@@ -2,8 +2,8 @@ import logo from './logo.svg';
 import './App.css';
 import * as Tone from "tone";
 import Woodblock from './sounds/woodblock.wav'
-import { useState, useEffect } from 'react';
-import io, { Socket } from 'socket.io-client';
+import { useState, useEffect, useRef } from 'react';
+import io, { connect, Socket } from 'socket.io-client';
 import React from 'react';
 import { timer } from './util';
 import { Connection, JoinButton } from './types';
@@ -19,21 +19,30 @@ let timeDiff = 0;
 
 function App() {
 
-  const [connectionState, setConnectionState] = useState<Connection>("Disconnected");
+  const connectionState = useRef<Connection>("Disconnected");
+  const [isLoading, setIsLoading] = useState(false);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   // const [currentTime, setCurrentTime] = useState(0);
   const [timeOrigin, setTimeOrigin] = useState(window.performance.timeOrigin);
   const [serverOffset, setServerOffset] = useState(0);
-  // useEffect(() => {
 
+  // useEffect(() => {
   // }, []);
 
   useEffect(() => {
     console.log("Variable Time Origin: ", timeOrigin);
   }, [timeOrigin]);
 
-  function togglePlayback(play: boolean, time: number = 0, position: string = "0:0:0") {
+  useEffect(() => {
+    console.log("Server Offset: ", serverOffset);
+  }, [serverOffset]);
+
+  useEffect(() => {
+    console.log("State: ", connectionState);
+  }, [connectionState]);
+
+  function togglePlayback(play: boolean, time: number | string = 0, position: string = "0:0:0") {
     if (play) {
       Tone.getTransport().start(time);
       setIsPlaying(true);
@@ -44,19 +53,22 @@ function App() {
   }
 
   async function joinOrchestra() {
-    if (connectionState === "Connected") {
-      setConnectionState("Disconnected");
+    if (connectionState.current === "Connected") {
+      connectionState.current = "Disconnected";
+      socket.emit("leave-orchestra");
     } else {
       //audio.src = "data:audio/mpeg;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY29tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLm9yZwBURU5DAAAAHQAAA1N3aXRjaCBQbHVzIMKpIE5DSCBTb2Z0d2FyZQBUSVQyAAAABgAAAzIyMzUAVFNTRQAAAA8AAANMYXZmNTcuODMuMTAwAAAAAAAAAAAAAAD/80DEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQsRbAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQMSkAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV";
       //audio.play();
-
+      setIsLoading(true);
       console.log("Join Orchestra!");
-      setConnectionState("Connecting")
+      socket.emit("request-join");
+      connectionState.current = "Connecting"
 
       const audioContext = new Tone.Context();
       // baseTime = Date.now();
       timeDiff = window.performance.now();
       Tone.setContext(audioContext, true);
+      Tone.getTransport().bpm.value = 60;
       await Tone.start();
 
       let latencies: number[] = [];
@@ -69,17 +81,19 @@ function App() {
           socket.volatile.emit("calculate-latency", start, (latencyPlusOffset: number) => {
             const latency = Date.now() - start;
             latencies.push(latency / 2);
-            serverOffsets.push((latencyPlusOffset - (latency / 2)) / 1000);
+            serverOffsets.push((latencyPlusOffset - (latency / 2)));
             console.log("Performer latency: ", latency);
-            console.log("Server Offset: ", (latencyPlusOffset - (latency / 2)) / 1000);
+            console.log("Server Offset: ", (latencyPlusOffset - (latency / 2)));
           });
           await timer(1000);
         }
-        let averageOffset = serverOffsets.sort().slice(1,-1).reduce((a, b) => a + b) / (serverOffsets.length-2);
-        setServerOffset(averageOffset);
+        let middleOffsets = serverOffsets.sort().slice(1, -1);
+        let meanOffset = middleOffsets.reduce((a, b) => a + b) / (middleOffsets.length);
+        setServerOffset(meanOffset);
         socket.emit("join-orchestra", latencies);
       }
       await synchronize();
+      connectionState.current = "Connected";
 
       //create a synth and connect it to the main output (your speakers)
       //const synth = new Tone.Synth().toDestination();
@@ -90,7 +104,7 @@ function App() {
 
       Tone.getTransport().scheduleRepeat((time) => {
         const start = Date.now();
-        setTimeOrigin(start - window.performance.now());
+        //setTimeOrigin(start - window.performance.now());
 
         // volatile, so the packet will be discarded if the socket is not connected
         // socket.volatile.emit("calculate-latency", start, (latencyPlusOffset: number) => {
@@ -102,7 +116,7 @@ function App() {
         // });
       }, "1m", 0);
 
-      setConnectionState("Connected");
+      setIsLoading(false);
 
       // socketInstance.on('ping', function(ms) {
       //   console.log(ms)
@@ -138,12 +152,14 @@ function App() {
     });
 
     socketInstance.on('start', (targetTime: number, position: string = "0:0:0") => {
-      console.log(`start`);
-      let time = getAbsoluteTime(targetTime);
-      console.log("Timeline Time: ", time);
-      console.log("Target Time: ", targetTime);
-      // console.log(Tone.getContext().now());
-      togglePlayback(true, time, position);
+      if (connectionState.current === "Connected") {
+        console.log(`start`);
+        let time = getAbsoluteTime(targetTime);
+        console.log("Timeline Time: ", time);
+        console.log("Target Time: ", targetTime);
+        // console.log(Tone.getContext().now());
+        togglePlayback(true, time, position);
+      }
     });
 
     socketInstance.on('stop', (data) => {
@@ -159,6 +175,10 @@ function App() {
 
     socketInstance.on("ping", (callback) => {
       callback();
+    });
+
+    socketInstance.on('disconnect', function () {
+      connectionState.current = "Disconnected";
     });
 
     // socketInstance.on("disconnect", (reason) => {
@@ -181,6 +201,10 @@ function App() {
     //   });
     // }, 5000);
 
+    // setInterval(() => {
+    //   console.log(connectionState);
+    // }, 1000);
+
     return () => {
       if (socketInstance) {
         socketInstance.disconnect();
@@ -189,7 +213,7 @@ function App() {
   }, []);
 
   function getAbsoluteTime(targetTime: number) {
-    return (targetTime - timeOrigin - timeDiff - serverOffset) / 1000;
+    return (targetTime - timeOrigin - timeDiff - serverOffset) / 1000 ;
   }
 
   return (
@@ -197,12 +221,12 @@ function App() {
       <header className="App-header">
         <img src={logo} className="App-logo" alt="logo" />
         <p>
-          NETRONOME {isPlaying ? "(Stopped)" : "(Playing)"}
+          NETRONOME {!isPlaying ? "(Stopped)" : "(Playing)"}
         </p>
         {/* <button onClick={() => togglePlayback()}>{isPlaying ? "Stop" : "Play"}</button> */}
-        <button onClick={() => joinOrchestra()} disabled={connectionState === "Connecting"} className="Join-button">
-          {JoinButton[connectionState]}
-          <div className="spinner-3" hidden={(connectionState !== "Connecting")}></div>
+        <button onClick={() => joinOrchestra()} disabled={isLoading} className="Join-button">
+          {JoinButton[connectionState.current]}
+          <div className="spinner-3" hidden={!isLoading}></div>
         </button>
         {/* <p>{currentTime}</p> */}
       </header>

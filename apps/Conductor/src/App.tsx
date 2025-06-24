@@ -8,7 +8,7 @@ import InputDropdown from './components/Inputs';
 import React from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Connection, JoinButton, Performer } from './types';
-import { Button, Spacer} from "@chakra-ui/react"
+import { Button, HStack, Spacer, VStack} from "@chakra-ui/react"
 import Demo from "./components/Connections/ConnectionsDrawer"
 import ConnectionsDrawer from './components/Connections/ConnectionsDrawer';
 
@@ -96,11 +96,11 @@ function App() {
     // client-side
     setInterval(() => {
       const start = Date.now();
-      setTimeOrigin(start - window.performance.now());
+      //setTimeOrigin(start - window.performance.now());
 
       // volatile, so the packet will be discarded if the socket is not connected
       socketInstance.volatile.emit("ping", start, () => {
-        const latency = Date.now() - start;
+        const latency = window.performance.now() - start;
         console.log("Conductor latency: ", latency);
       });
     }, 5000);
@@ -171,6 +171,7 @@ function App() {
       //baseTime = Date.now();
       timeDiff = window.performance.now();
       Tone.setContext(audioContext, true);
+      Tone.getTransport().bpm.value = 60;
 
       // This must be called on a button click for mobile compatibility
       await Tone.start();
@@ -190,6 +191,7 @@ function App() {
       if (play) {
         const targetTime = Date.now();
         socket.emit('conductor-start', targetTime, position, (newTargetTime: number) => {
+          console.log(targetTime, "->", newTargetTime);
           let time = getAbsoluteTime(newTargetTime);
           console.log("Timeline Time: ", time);
           console.log("Target Time: ", newTargetTime);
@@ -237,6 +239,8 @@ function App() {
     <div className="App">
       <header className="App-header">
         <img src={logo} className="App-logo" alt="logo" />
+        <VStack>
+        <ConnectionsDrawer members={members}></ConnectionsDrawer>
         <p>
           NETRONOME (CONDUCTOR MODE)
         </p>
@@ -244,12 +248,12 @@ function App() {
           {JoinButton[connectionState]}
           <div className="spinner-3" hidden={(connectionState !== "Connecting")}></div>
         </Button>
-        <Button class="controls" onClick={() => togglePlayback(!isPlaying)} hidden={connectionState !== "Connected"} >{isPlaying ? "Stop" : "Play"}</Button>
+        <Button class="controls" bg="brand.700" onClick={() => togglePlayback(!isPlaying)} hidden={connectionState !== "Connected"} >{isPlaying ? "Stop" : "Play"}</Button>
         {/* <InputDropdown class="controls" inputs={audioInputs} setSelectedAudioId={setSelectedAudioId} isJoined={!isJoined} ></InputDropdown> */}
         <p>Connect to Netronome here:</p>
         <QRCodeSVG value={ipAddress} ></QRCodeSVG>
         <Spacer />
-        <ConnectionsDrawer members={members}></ConnectionsDrawer>
+        </VStack>
       </header>
     </div>
   );

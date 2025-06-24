@@ -1,4 +1,4 @@
-import { Table, Status } from "@chakra-ui/react"
+import { Table, Status, Spacer, Flex } from "@chakra-ui/react"
 import React from "react"
 import { Performer, ConnectionStatus } from "../../types"
 
@@ -16,27 +16,31 @@ const ConnectionsTable = ({ members }: { members: Performer[] }) => {
         if (member.latencies && member.latencies.length) {
             meanLatency = member.latencies.reduce((a, b) => a + b) / member?.latencies.length
         }
-        console.log("Mean Latency: ", meanLatency);
+        // console.log("Mean Latency: ", meanLatency);
         return (
-        <Table.Row key={member.id}>
-            <Table.Cell>{member.name}</Table.Cell>
-            <Table.Cell>
-                <Status.Root colorPalette={statusMap.get(member.status)}>
-                    <Status.Indicator />
-                </Status.Root>
-            </Table.Cell>
-            <Table.Cell textAlign="end">{meanLatency}</Table.Cell>
-        </Table.Row>
+            <Table.Row key={member.id}>
+                <Table.Cell textAlign="start">{member.name}</Table.Cell>
+                <Table.Cell textAlign="center">
+                <Flex alignItems="center">
+                    <Spacer />
+                        <Status.Root colorPalette={statusMap.get(member.status)} size={"lg"} >
+                            <Status.Indicator />
+                        </Status.Root>
+                    <Spacer />
+                    </Flex>
+                </Table.Cell>
+                <Table.Cell textAlign="end">{meanLatency}</Table.Cell>
+            </Table.Row>
         )
     })
 
     return (
-        <Table.Root size="sm">
+        <Table.Root size="sm" striped>
             <Table.Header>
                 <Table.Row>
-                    <Table.ColumnHeader>Name</Table.ColumnHeader>
-                    <Table.ColumnHeader>Status</Table.ColumnHeader>
-                    <Table.ColumnHeader textAlign="end">Latency</Table.ColumnHeader>
+                    <Table.ColumnHeader textAlign="start">Name</Table.ColumnHeader>
+                    <Table.ColumnHeader textAlign="center">Status</Table.ColumnHeader>
+                    <Table.ColumnHeader textAlign="end">Latency (ms)</Table.ColumnHeader>
                 </Table.Row>
             </Table.Header>
             <Table.Body>
