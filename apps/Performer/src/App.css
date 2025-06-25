@@ -1,18 +1,23 @@
-body,
-html {
-  width: 100%;
-  margin: 0;
-  /* background-color: #222; 
-  color: #fff; */
-}
-
-html,
-body,
-#root {
-  height: 100%;
-}
 .App {
   text-align: center;
+  min-height: 100vh;
+  min-width: 100vw;
+  display: flex;
+  background-color: #282c34;
+  flex-direction: column;
+  align-items: center;
+  /* justify-content: center; */
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
+
+.Standard-mode{
+  background-color: #282c34;
+}
+
+
+.White-mode{
+  background-color: white;
 }
 
 .App-logo {
@@ -24,17 +29,6 @@ body,
   .App-logo {
     animation: App-logo-spin infinite 20s linear;
   }
-}
-
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
 }
 
 .App-link {
@@ -62,8 +56,8 @@ body,
   width: 200px;
   height: 40px;
   font-size: large;
-  float: left;
-  display: flex;
+  /* float: left; */
+  /* display: flex; */
   justify-content: center;
   position: relative;
 }
@@ -74,7 +68,8 @@ body,
   aspect-ratio: 1;
   border-radius: 50%;
   background: #25b09b;
-  position: absolute;
+  /* position: absolute; */
+  justify-self: center;
   --_m: 
     conic-gradient(#0000 10%,#000),
     linear-gradient(#000 0 0) content-box;

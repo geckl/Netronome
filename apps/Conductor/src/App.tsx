@@ -8,7 +8,7 @@ import InputDropdown from './components/Inputs';
 import React from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Connection, JoinButton, Performer } from './types';
-import { Button, HStack, Spacer, VStack } from "@chakra-ui/react"
+import { Button, Flex, HStack, Spacer, VStack } from "@chakra-ui/react"
 import Demo from "./components/Connections/ConnectionsDrawer"
 import ConnectionsDrawer from './components/Connections/ConnectionsDrawer';
 import { timer } from './util';
@@ -196,7 +196,7 @@ function App() {
             console.log("Performer latency: ", latency);
             console.log("Server Offset: ", (latencyPlusOffset - (latency / 2)));
           });
-          await timer(1000);
+          await timer(500);
         }
         let middleOffsets = serverOffsets.sort().slice(1, -1);
         let meanOffset = middleOffsets.reduce((a, b) => a + b) / (middleOffsets.length);
@@ -269,24 +269,29 @@ function App() {
 
   return (
     <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
+      <VStack minHeight={"100%"} >
+        <header>
+          <img src={logo} className="App-logo" alt="logo" />
+        </header>
+        <ConnectionsDrawer members={members}></ConnectionsDrawer>
+        <Button onClick={() => joinOrchestra()} disabled={connectionState === "Connecting"} className="Join-button" bg="brand.300">
+          {JoinButton[connectionState]}
+          <div className="spinner-3" hidden={(connectionState !== "Connecting")}></div>
+        </Button>
+        <p>
+          NETRONOME (CONDUCTOR MODE)
+        </p>
+        <Button className="controls" bg="brand.700" onClick={() => togglePlayback(!isPlaying)} hidden={connectionState !== "Connected"} >{isPlaying ? "Stop" : "Play"}</Button>
+        {/* <InputDropdown class="controls" inputs={audioInputs} setSelectedAudioId={setSelectedAudioId} isJoined={!isJoined} ></InputDropdown> */}
+      </VStack>
+      <Spacer />
+      <footer>
         <VStack>
-          <ConnectionsDrawer members={members}></ConnectionsDrawer>
-          <p>
-            NETRONOME (CONDUCTOR MODE)
-          </p>
-          <Button onClick={() => joinOrchestra()} disabled={connectionState === "Connecting"} className="Join-button" bg="brand.300">
-            {JoinButton[connectionState]}
-            <div className="spinner-3" hidden={(connectionState !== "Connecting")}></div>
-          </Button>
-          <Button class="controls" bg="brand.700" onClick={() => togglePlayback(!isPlaying)} hidden={connectionState !== "Connected"} >{isPlaying ? "Stop" : "Play"}</Button>
-          {/* <InputDropdown class="controls" inputs={audioInputs} setSelectedAudioId={setSelectedAudioId} isJoined={!isJoined} ></InputDropdown> */}
           <p>Connect to Netronome here:</p>
           <QRCodeSVG value={ipAddress} ></QRCodeSVG>
           <Spacer />
         </VStack>
-      </header>
+      </footer>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import logo from './logo.svg';
+import { ReactComponent as Logo } from './logo.svg';
 import './App.css';
 import * as Tone from "tone";
 import Woodblock from './sounds/woodblock.wav'
@@ -26,6 +26,7 @@ function App() {
   // const [currentTime, setCurrentTime] = useState(0);
   const [timeOrigin, setTimeOrigin] = useState(window.performance.timeOrigin);
   const serverOffset = useRef<number>(0);
+  const [colorMode, setColorMode] = useState<string>("#61DAFB");
 
   // useEffect(() => {
   // }, []);
@@ -81,7 +82,7 @@ function App() {
       let serverOffsets: number[] = [];
 
       async function synchronize() {
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < 10; i++) {
           const start = Tone.immediate() * 1000;
           // volatile, so the packet will be discarded if the socket is not connected
           socket.volatile.emit("calculate-latency", start, (latencyPlusOffset: number) => {
@@ -91,7 +92,7 @@ function App() {
             console.log("Performer latency: ", latency);
             console.log("Server Offset: ", (latencyPlusOffset - (latency / 2)));
           });
-          await timer(1000);
+          await timer(500);
         }
         let middleOffsets = serverOffsets.sort().slice(1, -1);
         let meanOffset = middleOffsets.reduce((a, b) => a + b) / (middleOffsets.length);
@@ -107,6 +108,13 @@ function App() {
       var player = new Tone.Player(Woodblock).toDestination();
       Tone.getTransport().scheduleRepeat((time) => {
         player.start(time);
+        Tone.getDraw().schedule(function () {
+          setColorMode("white");
+        }, time)
+        Tone.getDraw().schedule(function () {
+          setColorMode("#61DAFB");
+        }, time + .1)
+
         // console.log(Tone.getTransport().position);
       }, "4n", 0);
 
@@ -226,10 +234,13 @@ function App() {
 
   return (
     <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
+      <div minHeight={"100%"}>
+        <header className="App-header">
+          {/* <img src={logo} className="App-logo" alt="logo" /> */}
+          <Logo className="App-logo" fill={colorMode} />
+        </header>
         <p>
-          NETRONOME {!isPlaying ? "(Stopped)" : "(Playing)"}
+          NETRONOME {connectionState.current !== "Connected" ? "" : (!isPlaying ? "(Stopped)" : "(Playing)")}
         </p>
         {/* <button onClick={() => togglePlayback()}>{isPlaying ? "Stop" : "Play"}</button> */}
         <button onClick={() => joinOrchestra()} disabled={isLoading} className="Join-button">
@@ -237,7 +248,7 @@ function App() {
           <div className="spinner-3" hidden={!isLoading}></div>
         </button>
         {/* <p>{currentTime}</p> */}
-      </header>
+      </div>
     </div>
   );
 }
