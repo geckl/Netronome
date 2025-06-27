@@ -10,7 +10,7 @@ import os from "os";
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import Orchestra from "./orchestra.js";
-import { Performer, User } from "./types.js";
+import { Performer } from "./types.js";
 import { UUID } from "crypto";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -78,6 +78,13 @@ conductors.on('connection', (socket: Socket) => {
     performers.emit('stop');
     orc.isPlaying = false;
   });
+
+  socket.on('conductor-change-tempo', (targetTime: number, position: string, newTempo: number, cb: (newTargetTime: number) => void) => {
+    console.log("Change Tempo: ", newTempo);
+    const newTargetTime = targetTime + orc.totalLatency;
+    performers.emit('change-tempo', newTargetTime, position, newTempo);
+    cb(newTargetTime);
+  })
 
   // Handle incoming audio stream
   socket.on('audioStream', (audioData: string | ArrayBuffer | null) => {

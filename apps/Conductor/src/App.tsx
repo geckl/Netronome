@@ -7,10 +7,11 @@ import io, { Socket } from 'socket.io-client';
 import InputDropdown from './components/Inputs';
 import React from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Connection, JoinButton, Performer } from './types';
+import { Connection, DeviceType, JoinButton, Performer } from './types';
 import { Button, Flex, HStack, Spacer, VStack } from "@chakra-ui/react"
 import Demo from "./components/Connections/ConnectionsDrawer"
 import ConnectionsDrawer from './components/Connections/ConnectionsDrawer';
+import { TempoSlider } from './components/Tempo/TempoSlider';
 import { timer } from './util';
 
 
@@ -220,11 +221,11 @@ function App() {
   function togglePlayback(play: boolean, position: string = "0:0:0") {
     if (socket) {
       if (play) {
-        const targetTime = Tone.immediate() * 1000;
+        const targetTime = convertTime("Server", Tone.immediate());
         console.log("Target Time: ", targetTime)
-        socket.emit('conductor-start', targetTime + serverOffset.current, position, (newTargetTime: number) => {
-          console.log(targetTime, "->", newTargetTime - serverOffset.current);
-          let time = getAbsoluteTime(newTargetTime - serverOffset.current);
+        socket.emit('conductor-start', targetTime, position, (newTargetTime: number) => {
+          // console.log(targetTime, "->", newTargetTime - serverOffset.current);
+          const time = convertTime("Client", newTargetTime);
           console.log("Timeline Time: ", time);
           //console.log("Target Time: ", newTargetTime - serverOffset.current);
           //console.log(Tone.getContext().immediate());
@@ -263,8 +264,16 @@ function App() {
     }
   }
 
-  function getAbsoluteTime(targetTime: number) {
-    return (targetTime / 1000);
+  function convertTime(destination: DeviceType, time: number) {
+    if (destination === "Server") {
+      // Client time in seconds
+      return (time * 1000) + serverOffset.current;
+    } else if (destination === "Client") {
+      //Server time in milliseconds
+      return (time - serverOffset.current) / 1000;
+    } else {
+      throw Error(`Not a valid conversion (options are "server" or "client"`);
+    }
   }
 
   return (
@@ -282,6 +291,7 @@ function App() {
           NETRONOME (CONDUCTOR MODE)
         </p>
         <Button className="controls" bg="brand.700" onClick={() => togglePlayback(!isPlaying)} hidden={connectionState !== "Connected"} >{isPlaying ? "Stop" : "Play"}</Button>
+        {connectionState === "Connected" && <TempoSlider socket={socket} convertTime={convertTime} />}
         {/* <InputDropdown class="controls" inputs={audioInputs} setSelectedAudioId={setSelectedAudioId} isJoined={!isJoined} ></InputDropdown> */}
       </VStack>
       <Spacer />

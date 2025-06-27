@@ -6,7 +6,7 @@ import { useState, useEffect, useRef } from 'react';
 import io, { connect, Socket } from 'socket.io-client';
 import React from 'react';
 import { timer } from './util';
-import { Connection, JoinButton } from './types';
+import { Connection, DeviceType, JoinButton } from './types';
 
 
 // Record monotonic clock's initial value
@@ -170,9 +170,9 @@ function App() {
     socketInstance.on('start', (targetTime: number, position: string = "0:0:0") => {
       if (connectionState.current === "Connected") {
         console.log(`start`);
-        let time = getAbsoluteTime(targetTime - serverOffset.current);
-        console.log("Timeline Time: ", time);
-        console.log("Target Time: ", targetTime - serverOffset.current);
+        const time = convertTime("Client", targetTime);
+        // console.log("Timeline Time: ", time);
+        // console.log("Target Time: ", targetTime - serverOffset.current);
         // console.log(Tone.getContext().now());
         togglePlayback(true, time, position);
       }
@@ -183,6 +183,14 @@ function App() {
       setIsPlaying(false);
       togglePlayback(false);
     });
+
+    socketInstance.on('change-tempo', (targetTime: number, position: string = "0:0:0", newTempo: number) => {
+      if (connectionState.current === "Connected") {
+        console.log("change-tempo");
+        let time2 = convertTime("Client", targetTime);
+        Tone.getTransport().bpm.setValueAtTime(newTempo, time2);
+      }
+    })
 
     socketInstance.on("starttime", (data => {
       console.log("Backend Start Time: " + data);
@@ -228,9 +236,17 @@ function App() {
     };
   }, []);
 
-  function getAbsoluteTime(targetTime: number) {
-    return (targetTime / 1000);
-  }
+  function convertTime(destination: DeviceType, time: number) {
+      if (destination === "Server") {
+        // Client time in seconds
+        return (time * 1000) + serverOffset.current;
+      } else if (destination === "Client") {
+        //Server time in milliseconds
+        return (time - serverOffset.current) / 1000;
+      } else {
+        throw Error(`Not a valid conversion (options are "server" or "client"`);
+      }
+    }
 
   return (
     <div className="App">

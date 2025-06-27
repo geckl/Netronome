@@ -21,3 +21,5 @@ export const JoinButton = {
    'Connecting': "",
    'Connected': "Disconnect"
 };
+
+export type DeviceType = "Client" | "Server"
