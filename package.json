@@ -1,0 +1,8 @@
+{
+    "scripts": {
+        "conductor-build": "cd ./apps/Conductor && yarn build",
+        "performer-build": "cd ./apps/Performer && yarn build",
+        "build": "yarn run conductor-build && yarn run performer-build"
+
+    }
+}
