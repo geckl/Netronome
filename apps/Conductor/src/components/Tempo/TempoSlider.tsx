@@ -4,8 +4,9 @@ import { Socket } from 'socket.io-client';
 import * as Tone from "tone";
 
 import { DeviceType } from "../../types";
+import { convertTime } from "../../util";
 
-export const TempoSlider = ({ socket, convertTime }: { socket: Socket; convertTime(destination: DeviceType, time: number): number}) => {
+export const TempoSlider = ({ socket, serverOffset }: { socket: Socket; serverOffset: any}) => {
 
     const [tempo, setTempo] = useState<number>(60);
 
@@ -13,12 +14,12 @@ export const TempoSlider = ({ socket, convertTime }: { socket: Socket; convertTi
         console.log("Change Tempo!");
         if(socket)
         {
-            const targetTime = convertTime("Server", Tone.immediate())
+            const targetTime = convertTime("Server", Tone.immediate(), serverOffset)
             console.log("Target Time: ", targetTime);
             const position = "0:0:0";
             socket.emit("conductor-change-tempo", targetTime, position, tempo, (newTargetTime: number) => {
                 console.log("New Target Time: ", newTargetTime);
-                let time2 = convertTime("Client", newTargetTime);
+                let time2 = convertTime("Client", newTargetTime, serverOffset);
                 Tone.getTransport().bpm.setValueAtTime(tempo, time2);
             });
         }

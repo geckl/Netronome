@@ -1,5 +1,5 @@
 import logo from './logo.svg';
-import './App.css';
+import './styles/App.css';
 import * as Tone from "tone";
 import Woodblock from './sounds/woodblock.wav'
 import { useState, useEffect, useRef } from 'react';
@@ -12,36 +12,23 @@ import { Button, Flex, HStack, Spacer, VStack } from "@chakra-ui/react"
 import Demo from "./components/Connections/ConnectionsDrawer"
 import ConnectionsDrawer from './components/Connections/ConnectionsDrawer';
 import { TempoSlider } from './components/Tempo/TempoSlider';
-import { timer } from './util';
-
-
-
-// Record monotonic clock's initial value
-//const baseTime = window.performance.timeOrigin;
-//console.log(baseTime);
-//console.log(Tone.getContext().now());
-let timeDiff = 0;
-
+import { convertTime, getDevices, timer } from './util';
 
 function App() {
 
   const [connectionState, setConnectionState] = useState<Connection>("Disconnected");
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isPlaying, setIsPlaying] = useState(false)
-  const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]); //MediaDeviceInfo
-  const [selectedAudioId, setSelectedAudioId] = useState(null);
-  const [timeOrigin, setTimeOrigin] = useState(window.performance.timeOrigin);
   const [ipAddress, setIpAddress] = useState("");
   const [members, setMembers] = useState<Performer>([]);
   const serverOffset = useRef<number>(0);
+  // const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]); //MediaDeviceInfo
+  // const [selectedAudioId, setSelectedAudioId] = useState(null);
+  // const [timeOrigin, setTimeOrigin] = useState(window.performance.timeOrigin);
 
   // useEffect(() => {
   //   console.log("static time origin: ", window.performance.timeOrigin, " variable time origin: ", timeOrigin);
   // }, [timeOrigin]);
-
-  useEffect(() => {
-    console.log("static time origin: ", window.performance.timeOrigin, " variable time origin: ", timeOrigin);
-  }, [ipAddress]);
 
   useEffect(() => {
     const socketInstance = io('/conductor', {
@@ -55,62 +42,35 @@ function App() {
       console.log('Connected to server');
     });
 
-    // socketInstance.on('start', (data) => {
-    //   console.log(`start`);
-    //   togglePlayback(true);
-    // });
-
     socketInstance.on("server-ip", (ipAddress: string) => {
       console.log("Server IP Address: ", ipAddress);
       setIpAddress(`http://${ipAddress}:3000`);
-    })
+    });
 
     socketInstance.on("starttime", (data: Date) => {
       console.log("Backend Start Time: ");
       console.log(new Date(data));
-    }
-    );
+    });
 
     socketInstance.on("update-members", (members: Performer) => {
       setMembers(members);
       console.log(members);
-    })
+    });
 
     // socketInstance.on('audioStream', (audioData) => {
-    //   var newData = audioData.split(";");
-    //   newData[0] = "data:audio/ogg;";
-    //   newData = newData[0] + newData[1];
-
-    //   var audio = new Audio(newData);
-    //   if (!audio || document.hidden) {
-    //     return;
-    //   }
-    //   audio.play();
+    //  playAudio(audioData)
     // });
 
-    // socketInstance.on('ping', function(ms) {
-    //   console.log(ms)
-    //   //const latency = ms;
-    //   //console.log(latency);
-    // });
-
-    getDevices();
+    // getDevices(setAudioInputs);
 
     // // client-side
     // setInterval(() => {
-    //   const start = window.performance.now();
-    //   //setTimeOrigin(start - window.performance.now());
-
     //   // volatile, so the packet will be discarded if the socket is not connected
     //   socketInstance.volatile.emit("ping", start, () => {
     //     const latency = window.performance.now() - start;
     //     console.log("Conductor latency: ", latency);
     //   });
     // }, 5000);
-
-    // setInterval(() => {
-    //   console.log(serverOffset.current);
-    // }, 1000);
 
     return () => {
       if (socketInstance) {
@@ -119,53 +79,9 @@ function App() {
     };
   }, []);
 
-  useEffect(() => {
-    if (selectedAudioId && socket) {
-      console.log("New Audio Source Selected: " + selectedAudioId);
-      navigator.mediaDevices.getUserMedia({
-        audio: {
-          deviceId: {
-            exact: selectedAudioId,
-          },
-        },
-        video: false
-      })
-        .then((stream) => {
-          var madiaRecorder = new MediaRecorder(stream);
-          var audioChunks: Blob[] = [];
-
-          madiaRecorder.addEventListener("dataavailable", function (event) {
-            audioChunks.push(event.data);
-          });
-
-          madiaRecorder.addEventListener("stop", function () {
-            var audioBlob = new Blob(audioChunks);
-            audioChunks = [];
-            var fileReader = new FileReader();
-            fileReader.readAsDataURL(audioBlob);
-            fileReader.onloadend = function () {
-              var base64String = fileReader.result;
-              socket.volatile.emit("audioStream", base64String);
-            };
-
-            madiaRecorder.start();
-            setTimeout(function () {
-              madiaRecorder.stop();
-            }, 1000);
-          });
-
-          madiaRecorder.start();
-          setTimeout(function () {
-            madiaRecorder.stop();
-          }, 1000);
-        })
-        .catch((error) => {
-          console.error('Error capturing audio.', error);
-        });
-    }
-
-    return;
-  }, [selectedAudioId]);
+  // useEffect(() => {
+  //   streamAudio();
+  // }, [selectedAudioId]);
 
   async function joinOrchestra() {
     if (connectionState === "Connected") {
@@ -175,8 +91,6 @@ function App() {
       setConnectionState("Connecting")
 
       const audioContext = new Tone.Context();
-      //baseTime = Date.now();
-      timeDiff = window.performance.now();
       Tone.setContext(audioContext, true);
       Tone.getTransport().bpm.value = 60;
 
@@ -221,11 +135,11 @@ function App() {
   function togglePlayback(play: boolean, position: string = "0:0:0") {
     if (socket) {
       if (play) {
-        const targetTime = convertTime("Server", Tone.immediate());
+        const targetTime = convertTime("Server", Tone.immediate(), serverOffset);
         console.log("Target Time: ", targetTime)
         socket.emit('conductor-start', targetTime, position, (newTargetTime: number) => {
           // console.log(targetTime, "->", newTargetTime - serverOffset.current);
-          const time = convertTime("Client", newTargetTime);
+          const time = convertTime("Client", newTargetTime, serverOffset);
           console.log("Timeline Time: ", time);
           //console.log("Target Time: ", newTargetTime - serverOffset.current);
           //console.log(Tone.getContext().immediate());
@@ -237,42 +151,6 @@ function App() {
         Tone.getTransport().stop();
         setIsPlaying(false);
       }
-    }
-  }
-
-
-  function getDevices() {
-    const inputs: MediaDeviceInfo[] = [];
-    if (!navigator.mediaDevices?.enumerateDevices) {
-      console.log("enumerateDevices() not supported.");
-    } else {
-      // List cameras and microphones.
-      navigator.mediaDevices
-        .enumerateDevices()
-        .then((devices) => {
-          devices.forEach((device) => {
-            //console.log(`${device.kind}: ${device.label} id = ${device.deviceId}`);
-            if (device.kind == "audioinput") {
-              inputs.push(device);
-            }
-          });
-          setAudioInputs(inputs);
-        })
-        .catch((err) => {
-          console.error(`${err.name}: ${err.message}`);
-        });
-    }
-  }
-
-  function convertTime(destination: DeviceType, time: number) {
-    if (destination === "Server") {
-      // Client time in seconds
-      return (time * 1000) + serverOffset.current;
-    } else if (destination === "Client") {
-      //Server time in milliseconds
-      return (time - serverOffset.current) / 1000;
-    } else {
-      throw Error(`Not a valid conversion (options are "server" or "client"`);
     }
   }
 
@@ -291,7 +169,7 @@ function App() {
           NETRONOME (CONDUCTOR MODE)
         </p>
         <Button className="controls" bg="brand.700" onClick={() => togglePlayback(!isPlaying)} hidden={connectionState !== "Connected"} >{isPlaying ? "Stop" : "Play"}</Button>
-        {connectionState === "Connected" && <TempoSlider socket={socket} convertTime={convertTime} />}
+        {connectionState === "Connected" && <TempoSlider socket={socket} serverOffset={serverOffset} />}
         {/* <InputDropdown class="controls" inputs={audioInputs} setSelectedAudioId={setSelectedAudioId} isJoined={!isJoined} ></InputDropdown> */}
       </VStack>
       <Spacer />
