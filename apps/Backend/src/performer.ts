@@ -30,6 +30,16 @@ performers.on('connection', (socket: Socket) => {
       //const latencyPlusOffset = Date.now() - time;
       cb(latencyPlusOffset);
     });
+
+    socket.on("calculate-latency-server", (socketId: string) => {
+        console.log("calculate-latency-server: ", socketId);
+        socket.to(socketId).volatile.emit("calculate-latency-server");
+      });
+
+      socket.on("calculate-latency-client", (socketId: string) => {
+        console.log("calculate-latency-client: ", socketId);
+        socket.to(socketId).volatile.emit("calculate-latency-client");
+      });
   
     // socket.conn.on("heartbeat", () => {
     //   // called after each round trip of the heartbeat mechanism
@@ -56,6 +66,11 @@ performers.on('connection', (socket: Socket) => {
     socket.on('connect_error', (err) => {
       console.log(err.message);
     });
+
+    socket.on("rtc-message", (message) => {
+        console.log("rtc-message: ", message);
+        socket.broadcast.emit("rtc-message", message);
+      });
   
     socket.on('disconnect', () => {
       if (performer.status === "Connected") {

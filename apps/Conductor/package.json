@@ -43,5 +43,5 @@
     ]
   },
   "proxy": "http://localhost:3000/conductor",
-  "homepage": "/conductor"
+  "homepage": "/Conductor"
 }

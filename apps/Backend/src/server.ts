@@ -1,9 +1,11 @@
 import http from "http";
 import express from "express";
+import cors from "cors";
 const app = express()
+app.use(cors());
 const server = http.createServer(app);
 import { Server } from "socket.io";
-export const io = new Server(server, { pingInterval: 10000 });
+export const io = new Server(server, { cors: { origin: "http://127.0.0.1/:5173" }, pingInterval: 10000 });
 import path from "path";
 const port = 3000
 import os from "os";

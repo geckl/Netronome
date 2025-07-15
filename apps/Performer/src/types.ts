@@ -15,6 +15,7 @@ export type Performer = {
 }
 
 export type ConnectionStatus = 'Disconnected' | 'Connecting' | 'Connected';
+export type RTCConnectionStatus = 'Disconnected' | 'Connecting' | 'Connected';
 
 export const JoinButton = {
  'Disconnected': "Join",
@@ -23,3 +24,15 @@ export const JoinButton = {
 };
 
 export type DeviceType = "Client" | "Server"
+
+export type Message = {
+  type: string,
+  candidate: string | null,
+  sdpMid?: string | null,
+  sdpMLineIndex?: number | null,
+};
+
+export type LatencyData = {
+  serverLatency: number,
+  clientLatency: number
+}

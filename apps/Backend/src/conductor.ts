@@ -63,6 +63,10 @@ const conductorRoutes = (conductors: Namespace, performers: Namespace) => {
         socket.on('audioStream', (audioData: string | ArrayBuffer | null) => {
             performers.emit('audioStream', audioData);
         });
+
+        socket.on("rtc-message", (message) => {
+            socket.broadcast.emit("rtc-message", message);
+          });
     });
 
 }
