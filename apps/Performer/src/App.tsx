@@ -89,6 +89,10 @@ function App() {
       callback();
     });
 
+    socketInstance.on("calculate-latency-server", (socketId: string) => {
+      sendMessage({ command: "calculate-latency-server", value: socketId });
+    });
+
     socketInstance.on('disconnect', function () {
       connectionState.current = "Disconnected";
     });
@@ -131,15 +135,15 @@ function App() {
           socketInstance.emit("rtc-message", message);
         };
         dc.onopen = (event) => {
-          dc.send("Hi you!");
+          sendMessage({ command: "talk", value: "Hi you!" });
           rtcConnectionState.current = "Connected";
         };
         dc.onmessage = (event) => {
           console.log(event.data);
-          const message = event.data[0];
-          if (message === "calculate-latency-client") {
-            const source = event.data[1];
-            socket.volatile.emit("calculate-latency-client", source);
+          const message = JSON.parse(event.data).message;
+          if (message.command === "calculate-latency-client") {
+            const source = message.value;
+            socketInstance.volatile.emit("calculate-latency-client", source);
           }
         };
         dc.onclose = (event) => {
@@ -177,15 +181,15 @@ function App() {
           socketInstance.emit("rtc-message", message);
         };
         dc.onopen = (event) => {
-          dc.send("Hi you!");
+          sendMessage({ command: "talk", value: "Hi you!" });
           rtcConnectionState.current = "Connected";
         };
         dc.onmessage = (event) => {
           console.log(event.data);
-          const message = event.data[0];
-          if (message === "calculate-latency-client") {
-            const source = event.data[1];
-            socket.volatile.emit("calculate-latency-client", source);
+          const message = JSON.parse(event.data).message;
+          if (message.command === "calculate-latency-client") {
+            const source = message.value;
+            socketInstance.volatile.emit("calculate-latency-client", source);
           }
         };
         dc.onclose = (event) => {
@@ -193,8 +197,8 @@ function App() {
         };
         // pc.ontrack = (e) => (remoteVideo.current.srcObject = e.streams[0]);
         // localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
-        
-        await pc.setRemoteDescription({type: offer.type, sdp: offer.sdp});
+
+        await pc.setRemoteDescription({ type: offer.type, sdp: offer.sdp });
         const answer = await pc.createAnswer();
         socketInstance.emit("rtc-message", { type: "answer", sdp: answer.sdp, socketId: socketInstance.id });
         setRtcSocketId(offer.socketId);
@@ -255,7 +259,7 @@ function App() {
       return;
     }
     try {
-      await pc.setRemoteDescription({type: answer.type, sdp: answer.sdp});
+      await pc.setRemoteDescription({ type: answer.type, sdp: answer.sdp });
       console.log(answer.socketId);
       setRtcSocketId(answer.socketId);
     } catch (e) {
@@ -276,7 +280,7 @@ function App() {
         await pc.addIceCandidate(candidate);
       }
     } catch (e) {
-      if(e instanceof TypeError === false) {
+      if (e instanceof TypeError === false) {
         console.log(e);
       }
     }
@@ -304,7 +308,6 @@ function App() {
       dc.send(JSON.stringify(obj));
     }
   }
-
 
 
   function togglePlayback(play: boolean, time: number | string = 0, position: string = "0:0:0") {
@@ -337,9 +340,6 @@ function App() {
       // This must be called on a button click for browser compatibility
       await Tone.start();
 
-      let latencies: number[] = [];
-      let serverOffsets: number[] = [];
-
       // async function synchronize() {
       //   for (let i = 0; i < 10; i++) {
       //     const start = Tone.immediate() * 1000;
@@ -366,36 +366,37 @@ function App() {
           let serverLatency: number, clientLatency: number;
 
           const start = Tone.immediate() * 1000;
-          sendMessage([`calculate-latency-client`, socket.id]);
+          sendMessage({ command: "calculate-latency-client", value: socket.id });
           console.log(rtcSocketId);
           socket.volatile.emit("calculate-latency-server", rtcSocketId);
 
           function responseHandler() {
             // resolve promise with the value we got
-            if (serverLatency && clientLatency) {
+            if (serverLatency != null && clientLatency != null) {
               resolve({ serverLatency: serverLatency, clientLatency: clientLatency });
               clearTimeout(timer);
             }
           }
 
           socket.once("calculate-latency-client", () => {
-            const stop = Tone.immediate() * 1000;
-            clientLatency = stop - start;
+            console.log("calculate-latency-client response received");
+            const stop1 = Tone.immediate() * 1000;
+            clientLatency = stop1 - start;
+            console.log("Client Latency: ", clientLatency);
             responseHandler();
           });
 
-          if (dc) {
-            dc.addEventListener('message', event => {
-              const message = event.data[0];
-              if (message === "calculate-latency-server") {
-                const stop = Tone.immediate() * 1000;
-                serverLatency = stop - start;
-                // const source = event.data[1];
-                responseHandler();
+          dc.addEventListener('message', event => {
+            console.log("calculate-latency-server response received");
+            const message = JSON.parse(event.data).message;
+            if (message.command === "calculate-latency-server") {
+              const stop2 = Tone.immediate() * 1000;
+              serverLatency = stop2 - start;
+              console.log("Server Latency: ", serverLatency);
+              responseHandler();
 
-              }
-            }, { once: true });
-          }
+            }
+          }, { once: true });
 
           // set timeout so if a response is not received within a 
           // reasonable amount of time, the promise will reject
@@ -409,7 +410,12 @@ function App() {
 
 
       await synchronize().then(async ({ serverLatency, clientLatency }) => {
+        let latencies: number[] = [];
+        let serverOffsets: number[] = [];
+        console.log("Server Latency: ", serverLatency);
+        console.log("Client Latency: ", clientLatency);
         const offsetOneWay = (serverLatency - clientLatency) / 3;
+        console.log("Offset One Way: ", offsetOneWay);
         for (let i = 0; i < 5; i++) {
           const start = Tone.immediate() * 1000;
           // volatile, so the packet will be discarded if the socket is not connected
