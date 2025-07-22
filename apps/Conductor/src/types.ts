@@ -23,3 +23,5 @@ export const JoinButton = {
 };
 
 export type DeviceType = "Client" | "Server"
+
+export type TempoMode = "Static" | "Fluid";

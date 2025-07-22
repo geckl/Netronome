@@ -27,6 +27,8 @@ export type DeviceType = "Client" | "Server"
 
 export type Message = {
   type: string,
+  targetId: string,
+  senderId: string,
   candidate: string | null,
   sdpMid?: string | null,
   sdpMLineIndex?: number | null,
@@ -35,4 +37,9 @@ export type Message = {
 export type LatencyData = {
   serverLatency: number,
   clientLatency: number
+}
+
+export type RTCConnection = {
+  pc: RTCPeerConnection,
+  dc: RTCDataChannel
 }

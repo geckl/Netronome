@@ -59,6 +59,11 @@ const conductorRoutes = (conductors: Namespace, performers: Namespace) => {
             cb(newTargetTime);
         })
 
+        socket.on('conductor-backtrack', (backtrack: string | ArrayBuffer | null) => {
+            console.log("New Backtrack: ", backtrack);
+            performers.emit('backtrack', backtrack);
+        })
+
         // Handle incoming audio stream
         socket.on('audioStream', (audioData: string | ArrayBuffer | null) => {
             performers.emit('audioStream', audioData);

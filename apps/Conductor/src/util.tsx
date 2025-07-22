@@ -27,7 +27,7 @@ export function getDevices({ setAudioInputs }: { setAudioInputs: (inputs: MediaD
   }
 }
 
-export const streamAudio = ({selectedAudioId, socket}: {selectedAudioId: string, socket: Socket}) => {
+export const streamAudio = ({ selectedAudioId, socket }: { selectedAudioId: string, socket: Socket }) => {
   if (selectedAudioId && socket) {
     console.log("New Audio Source Selected: " + selectedAudioId);
     navigator.mediaDevices.getUserMedia({
@@ -73,16 +73,36 @@ export const streamAudio = ({selectedAudioId, socket}: {selectedAudioId: string,
   }
 }
 
-export const playAudio = (audioData: any) => {
-    var newData = audioData.split(";");
-        newData[0] = "data:audio/ogg;";
-        newData = newData[0] + newData[1];
-  
-        var audio = new Audio(newData);
-        if (!audio || document.hidden) {
+export const streamFile = ({ audioFile, socket }: { audioFile: File, socket: Socket }) => {
+  if (audioFile && socket) {
+    const stream = audioFile.stream()
+    const reader = stream.getReader();
+    const readChunk = () => {
+      reader.read().then(({ done, value }) => {
+        if (done) {
+          console.log("Stream finished");
           return;
         }
-        audio.play();
+        socket.emit("conductor-backtrack", value);
+        // Continue reading the next chunk
+        readChunk();
+      });
+    };
+    // Start reading the stream
+    readChunk();
+  }
+}
+
+export const playAudio = (audioData: any) => {
+  var newData = audioData.split(";");
+  newData[0] = "data:audio/ogg;";
+  newData = newData[0] + newData[1];
+
+  var audio = new Audio(newData);
+  if (!audio || document.hidden) {
+    return;
+  }
+  audio.play();
 }
 
 export const convertTime = (destination: DeviceType, time: number, serverOffset: any) => {
@@ -96,3 +116,10 @@ export const convertTime = (destination: DeviceType, time: number, serverOffset:
     throw Error(`Not a valid conversion (options are "server" or "client"`);
   }
 }
+
+export const toBase64 = file => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.readAsDataURL(file);
+  reader.onload = () => resolve(reader.result);
+  reader.onerror = reject;
+});

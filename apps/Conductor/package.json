@@ -22,7 +22,8 @@
     "socket.io-client": "^4.8.1",
     "tone": "^15.0.4",
     "typescript": "^5.8.2",
-    "web-vitals": "^2.1.4"
+    "web-vitals": "^2.1.4",
+    "@types/node": "^24.0.15"
   },
   "scripts": {
     "start": "PORT=4000 react-scripts start",

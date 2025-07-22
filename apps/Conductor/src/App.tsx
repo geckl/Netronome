@@ -13,6 +13,10 @@ import Demo from "./components/Connections/ConnectionsDrawer"
 import ConnectionsDrawer from './components/Connections/ConnectionsDrawer';
 import { TempoSlider } from './components/Tempo/TempoSlider';
 import { convertTime, getDevices, timer } from './util';
+import { BacktrackButton } from './components/Backtrack/BacktrackButton';
+import { VolumeSlider } from './components/Volume/VolumeSlider';
+
+// var backtrack: Tone.Player | null = null;
 
 function App() {
 
@@ -22,6 +26,8 @@ function App() {
   const [ipAddress, setIpAddress] = useState("");
   const [members, setMembers] = useState<Performer>([]);
   const serverOffset = useRef<number>(0);
+  const backtrack = useRef<Tone.Player>(null);
+  const volume = useRef<Tone.Gain>(null);
   // const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]); //MediaDeviceInfo
   // const [selectedAudioId, setSelectedAudioId] = useState(null);
   // const [timeOrigin, setTimeOrigin] = useState(window.performance.timeOrigin);
@@ -29,6 +35,8 @@ function App() {
   // useEffect(() => {
   //   console.log("static time origin: ", window.performance.timeOrigin, " variable time origin: ", timeOrigin);
   // }, [timeOrigin]);
+
+  console.log(backtrack.current);
 
   useEffect(() => {
     const socketInstance = io('/conductor', {
@@ -93,6 +101,7 @@ function App() {
       const audioContext = new Tone.Context();
       Tone.setContext(audioContext, true);
       Tone.getTransport().bpm.value = 60;
+      volume.current = new Tone.Gain(0.5).toDestination();
 
       // This must be called on a button click for browser compatibility
       await Tone.start();
@@ -122,7 +131,8 @@ function App() {
       await synchronize();
 
       //create a synth and connect it to the main output (your speakers)
-      var player = new Tone.Player(Woodblock).toDestination();
+      var player = new Tone.Player(Woodblock);
+      player.connect(volume.current);
       Tone.getTransport().scheduleRepeat((time) => {
         player.start(time);
         // console.log(Tone.getTransport().position);
@@ -169,8 +179,11 @@ function App() {
           NETRONOME (CONDUCTOR MODE)
         </p>
         <Button className="controls" bg="brand.700" onClick={() => togglePlayback(!isPlaying)} hidden={connectionState !== "Connected"} >{isPlaying ? "Stop" : "Play"}</Button>
+        {connectionState === "Connected" && <VolumeSlider volume={volume} />}
         {connectionState === "Connected" && <TempoSlider socket={socket} serverOffset={serverOffset} />}
+        <Spacer />
         {/* <InputDropdown class="controls" inputs={audioInputs} setSelectedAudioId={setSelectedAudioId} isJoined={!isJoined} ></InputDropdown> */}
+        {connectionState === "Connected" && <BacktrackButton backtrack={backtrack} socket={socket}/>}
       </VStack>
       <Spacer />
       <footer>

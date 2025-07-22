@@ -4,11 +4,19 @@ import { DeviceType } from "./types";
 export const timer = ms => new Promise(res => setTimeout(res, ms));
 
 export const playAudio = (audioData: any) => {
-    var newData = audioData.split(";");
-        newData[0] = "data:audio/ogg;";
-        newData = newData[0] + newData[1];
+    console.log(typeof audioData);
+    console.log(audioData);
+
+    const blob = new Blob([audioData], { type: "audio/mpeg" });
+
+    
+    const audioString = JSON.stringify(audioData);
+
+    //var newData = audioString.split(";");
+    //    newData[0] = "data:audio/mpeg;";
+    //    newData = newData[0] + newData[1];
   
-        var audio = new Audio(newData);
+        var audio = new Audio(audioString);
         if (!audio || document.hidden) {
           return;
         }
@@ -26,3 +34,7 @@ export const playAudio = (audioData: any) => {
       throw Error(`Not a valid conversion (options are "server" or "client"`);
     }
   }
+
+  export function throwIfUndefined<T>(x: T | undefined): asserts x is T {
+    if (typeof x === "undefined") throw new Error("OH NOEZ");
+}
