@@ -1,7 +1,6 @@
 import { Namespace, Socket } from "socket.io";
 import { Performer } from "./types.js";
-import { UUID } from "crypto";
-import { orc } from "./server.ts"
+import { io, orc } from "./server.ts"
 
 const members: Performer[] = [];
 let membersCounter = 0;
@@ -10,14 +9,15 @@ const performerRoutes = (performers: Namespace, conductors: Namespace) => {
 
     // Performer Socket
     performers.on('connection', (socket: Socket) => {
-        console.log('a user connected');
+        console.log("performer joined!");
 
-        let uuid: UUID = crypto.randomUUID();
-        const performer: Performer = { id: uuid, name: `Performer #${membersCounter + 1}`, status: "Disconnected", latencies: [] }
+        const performer: Performer = { id: socket.id, name: `Performer #${membersCounter + 1}`, status: "Disconnected", latencies: [] }
         members.push(performer);
         membersCounter++;
-        conductors.emit("update-members", members);
         console.log("user connected: ", performer);
+        if (orc.conductor) {
+            conductors.sockets.get(orc.conductor.id)?.emit("update-members", members);
+        }
         // socket.emit("starttime", baselineDate);
 
         socket.on("request-join", () => {
@@ -46,12 +46,25 @@ const performerRoutes = (performers: Namespace, conductors: Namespace) => {
         //   console.log("heartbeat");
         // });
 
-        socket.on("join-orchestra", (latencies: number[]) => {
+        socket.on("sync-orchestra", (latencies: number[]) => {
             performer.latencies = latencies;
-            performer.status = "Connected"
-            orc.addPerformer(performer);
-            conductors.emit("update-members", members);
-            console.log("user joined orchestra: ", performer);
+            if (performer.status !== "Connected") {
+                performer.status = "Connected"
+                orc.addPerformer(performer);
+                if(orc.backtrack) {
+                    socket.emit('backtrack', orc.backtrack);
+                }
+            }
+            // socket.join("ensemble");
+            if (orc.conductor) {
+                conductors.sockets.get(orc.conductor.id)?.emit("update-members", members);
+                conductors.sockets.get(orc.conductor.id)?.emit("status-update", (isPlaying: boolean, time: number, position: number | string) => {
+                    if (isPlaying) {
+                        socket.emit('start', time, position);
+                    }
+                });
+            }
+            console.log("performer synced to orchestra: ", performer);
         });
 
         socket.on("leave-orchestra", () => {
@@ -81,9 +94,10 @@ const performerRoutes = (performers: Namespace, conductors: Namespace) => {
             if (performer.status === "Connected") {
                 orc.removePerformer(performer);
             }
+            performer.status = "Disconnected"
             let performerIndex = members.map(c => c.id).indexOf(performer.id)
             members.splice(performerIndex, 1);
-            conductors.emit("update-members", members);
+            // conductors.emit("update-members", members);
             console.log("user disconnected: ", members);
         });
 

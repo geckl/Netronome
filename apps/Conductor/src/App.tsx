@@ -24,7 +24,7 @@ function App() {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isPlaying, setIsPlaying] = useState(false)
   const [ipAddress, setIpAddress] = useState("");
-  const [members, setMembers] = useState<Performer>([]);
+  const [members, setMembers] = useState<Performer[]>([]);
   const serverOffset = useRef<number>(0);
   const backtrack = useRef<Tone.Player>(null);
   const volume = useRef<Tone.Gain>(null);
@@ -58,9 +58,19 @@ function App() {
       console.log(new Date(data));
     });
 
-    socketInstance.on("update-members", (members: Performer) => {
+    socketInstance.on("update-members", (members: Performer[]) => {
+      console.log("update members!");
       setMembers(members);
-      console.log(members);
+    });
+
+    socketInstance.on("status-update", (cb: (ip: boolean, t: number, p: number | string) => void) => {
+      console.log("status update!");
+      const targetTime = convertTime("Server", Tone.now(), serverOffset);
+      console.log(targetTime);
+      const position: number | string = Tone.getTransport().getSecondsAtTime(Tone.now());
+      console.log(position);
+      console.log(Tone.getTransport().state === "started");
+      cb(Tone.getTransport().state === "started", targetTime, position);
     });
 
     // socketInstance.on('audioStream', (audioData) => {
@@ -125,7 +135,7 @@ function App() {
         let meanOffset = middleOffsets.reduce((a, b) => a + b) / (middleOffsets.length);
         console.log("Mean: ", meanOffset);
         serverOffset.current = meanOffset;
-        socket.emit("join-orchestra", latencies);
+        socket.emit("conductor-sync-orchestra", latencies);
       }
       await synchronize();
 

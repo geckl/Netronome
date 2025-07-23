@@ -1,4 +1,4 @@
-import { DeviceType } from "./types";
+import { DeviceType, RTCConnection } from "./types";
 
 // Returns a Promise that resolves after "ms" Milliseconds
 export const timer = ms => new Promise(res => setTimeout(res, ms));
@@ -37,4 +37,16 @@ export const playAudio = (audioData: any) => {
 
   export function throwIfUndefined<T>(x: T | undefined): asserts x is T {
     if (typeof x === "undefined") throw new Error("OH NOEZ");
+}
+
+export function sendMessage(rtcConnection: RTCConnection, msg) {
+  const obj = {
+    message: msg,
+    timestamp: new Date(),
+  };
+  if (rtcConnection.dc.readyState === "open") {
+    rtcConnection.dc.send(JSON.stringify(obj));
+  } else {
+    console.error("Data channel is not open. Cannot send message.");
+  }
 }

@@ -46,6 +46,8 @@ export const BacktrackButton = ({ backtrack, socket, togglePlayback }) => {
                             // this.externalPlayer.sync();
                             // this.externalPlayer.start();
 
+                            Tone.getTransport().position = "0:0:0";
+
                            updatePlayhead.current = Tone.getTransport().scheduleRepeat(() => {
                                 const time = this.getCurrentTime();
                                 eventEmitter.emit('player.timeupdate', time);
@@ -76,17 +78,11 @@ export const BacktrackButton = ({ backtrack, socket, togglePlayback }) => {
 
                             // Update the Tone.js Player object with the new AudioBuffer
                             this.externalPlayer.buffer.set(opts.webAudio.audioBuffer);
-
                             return Promise.resolve();
                         },
 
                         play: async function () {
                             console.log("play backtrack!");
-                            // return Tone.start().then(() => {
-                            //     Tone.getTransport().start();
-
-                            //     this.eventEmitter.emit('player.playing', this.getCurrentTime());
-                            // });
                             togglePlayback(true)
                             this.eventEmitter.emit('player.playing', this.getCurrentTime());
                             return Promise.resolve();

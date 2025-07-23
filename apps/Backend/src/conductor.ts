@@ -1,15 +1,22 @@
 import { Namespace, Socket } from "socket.io";
 import { Performer } from "./types.js";
-import { UUID } from "crypto";
-import {  orc, ipAddress } from "./server.ts"
+
+import { orc, ipAddress } from "./server.ts"
 
 
 const conductorRoutes = (conductors: Namespace, performers: Namespace) => {
 
     // Conductor Socket
     conductors.on('connection', (socket: Socket) => {
-        let uuid: UUID = crypto.randomUUID();
-        const conductor: Performer = { id: uuid, name: "Conductor", status: "Disconnected", latencies: [] }
+
+        if (orc.conductor) {
+            console.log("A conductor is already connected!");
+            socket.emit("error", "A conductor is already connected! Disconnecting...");
+            socket.disconnect(true);
+            return;
+        }
+        console.log("conductor joined!");
+        const conductor: Performer = { id: socket.id, name: "Conductor", status: "Disconnected", latencies: [] }
         orc.conductor = conductor;
         socket.emit("server-ip", ipAddress);
 
@@ -28,19 +35,19 @@ const conductorRoutes = (conductors: Namespace, performers: Namespace) => {
         //   console.log("heartbeat");
         // });
 
-        socket.on("join-orchestra", (latencies: number[]) => {
+        socket.on("conductor-sync-orchestra", (latencies: number[]) => {
             conductor.latencies = latencies;
             conductor.status = "Connected"
             // orc.addPerformer(conductor);
             // conductors.emit("update-members", members);
-            console.log("conductor joined orchestra: ", conductor);
+            console.log("conductor synced to orchestra: ", conductor);
         });
 
         socket.on('conductor-start', (targetTime: number, position: string, cb: (newTargetTime: number) => void) => {
-            console.log("Target Time: ", targetTime);
-            console.log("Total Latency: ", orc.totalLatency);
-            const newTargetTime = targetTime + orc.totalLatency;
             console.log('conductor-start');
+            // console.log("Target Time: ", targetTime);
+            // console.log("Total Latency: ", orc.totalLatency);
+            const newTargetTime = targetTime + orc.totalLatency;
             performers.emit('start', newTargetTime, position);
             cb(newTargetTime);
             orc.isPlaying = true;
@@ -62,6 +69,7 @@ const conductorRoutes = (conductors: Namespace, performers: Namespace) => {
         socket.on('conductor-backtrack', (backtrack: string | ArrayBuffer | null) => {
             console.log("New Backtrack: ", backtrack);
             performers.emit('backtrack', backtrack);
+            orc.backtrack = backtrack;
         })
 
         // Handle incoming audio stream
@@ -71,7 +79,15 @@ const conductorRoutes = (conductors: Namespace, performers: Namespace) => {
 
         socket.on("rtc-message", (message) => {
             socket.broadcast.emit("rtc-message", message);
-          });
+        });
+
+        socket.on('disconnect', () => {
+            if (orc.conductor && orc.conductor.id === conductor.id) {
+                orc.conductor = null;
+                conductor.status = "Disconnected";
+            }
+        });
+
     });
 
 }

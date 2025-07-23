@@ -8,6 +8,7 @@ class Orchestra {
     public tempo: number = 120;
     public baseTime: number = 0;
     public totalLatency: number = 0;
+    public backtrack: string | ArrayBuffer | null = null;
     constructor() { }
 
     public addPerformer(p: Performer) {
