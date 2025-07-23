@@ -11,8 +11,6 @@ export const TempoSlider = ({ socket, serverOffset }: { socket: Socket; serverOf
     const [tempo, setTempo] = useState<number>(60);
     const [isFluidMode, setIsFluidMode] = useState(false);
 
-    console.log(isFluidMode);
-
     useEffect(() => {
         console.log("Change Tempo!");
         if (socket) {

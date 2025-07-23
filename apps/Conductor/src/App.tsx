@@ -36,8 +36,6 @@ function App() {
   //   console.log("static time origin: ", window.performance.timeOrigin, " variable time origin: ", timeOrigin);
   // }, [timeOrigin]);
 
-  console.log(backtrack.current);
-
   useEffect(() => {
     const socketInstance = io('/conductor', {
       transports: ['websocket'],
@@ -102,6 +100,7 @@ function App() {
       Tone.setContext(audioContext, true);
       Tone.getTransport().bpm.value = 60;
       volume.current = new Tone.Gain(0.5).toDestination();
+      Tone.getTransport().position = "0:0:0";
 
       // This must be called on a button click for browser compatibility
       await Tone.start();
@@ -135,30 +134,28 @@ function App() {
       player.connect(volume.current);
       Tone.getTransport().scheduleRepeat((time) => {
         player.start(time);
-        // console.log(Tone.getTransport().position);
       }, "4n", 0);
 
       setConnectionState("Connected");
     }
   }
 
-  function togglePlayback(play: boolean, position: string = "0:0:0") {
+  function togglePlayback(play: boolean, position: Tone.Unit.Time | undefined = undefined) {
+    Tone.getTransport().pause();
+    // if(position == undefined) {
+    //   position = Tone.getTransport().position;
+    // }
     if (socket) {
       if (play) {
-        const targetTime = convertTime("Server", Tone.immediate(), serverOffset);
-        console.log("Target Time: ", targetTime)
+        const targetTime = convertTime("Server", Tone.now(), serverOffset);
         socket.emit('conductor-start', targetTime, position, (newTargetTime: number) => {
           // console.log(targetTime, "->", newTargetTime - serverOffset.current);
-          const time = convertTime("Client", newTargetTime, serverOffset);
-          console.log("Timeline Time: ", time);
-          //console.log("Target Time: ", newTargetTime - serverOffset.current);
-          //console.log(Tone.getContext().immediate());
-          Tone.getTransport().start(time);
+          const time2 = convertTime("Client", newTargetTime, serverOffset);
+          Tone.getTransport().start(time2, position);
           setIsPlaying(true)
         });
       } else {
         socket.emit('conductor-stop');
-        Tone.getTransport().stop();
         setIsPlaying(false);
       }
     }
@@ -178,12 +175,12 @@ function App() {
         <p>
           NETRONOME (CONDUCTOR MODE)
         </p>
-        <Button className="controls" bg="brand.700" onClick={() => togglePlayback(!isPlaying)} hidden={connectionState !== "Connected"} >{isPlaying ? "Stop" : "Play"}</Button>
+        <Button className="controls" bg="brand.700" onClick={async () => togglePlayback(!isPlaying, Tone.getTransport().position)} hidden={connectionState !== "Connected"} >{isPlaying ? "Stop" : "Play"}</Button>
         {connectionState === "Connected" && <VolumeSlider volume={volume} />}
         {connectionState === "Connected" && <TempoSlider socket={socket} serverOffset={serverOffset} />}
         <Spacer />
         {/* <InputDropdown class="controls" inputs={audioInputs} setSelectedAudioId={setSelectedAudioId} isJoined={!isJoined} ></InputDropdown> */}
-        {connectionState === "Connected" && <BacktrackButton backtrack={backtrack} socket={socket}/>}
+        {connectionState === "Connected" && <BacktrackButton backtrack={backtrack} socket={socket} togglePlayback={togglePlayback} />}
       </VStack>
       <Spacer />
       <footer>

@@ -143,7 +143,7 @@ function App() {
           if (backtrack) {
             backtrack.dispose();
           }
-          backtrack = new Tone.Player(audioBuffer).sync().start("1m").toDestination();
+          backtrack = new Tone.Player(audioBuffer).sync().start().toDestination();
         }).catch((error) => {
           console.error("Error decoding audio data: ", error);
         }
@@ -397,12 +397,12 @@ function App() {
   }
 
 
-  function togglePlayback(play: boolean, time: number | string = 0, position: string = "0:0:0") {
+  function togglePlayback(play: boolean, time: number | string = 0, position: string| undefined = undefined) {
+    Tone.getTransport().pause();
     if (play) {
-      Tone.getTransport().start(time);
+      Tone.getTransport().start(time, position);
       setIsPlaying(true);
     } else {
-      Tone.getTransport().stop();
       setIsPlaying(false);
     }
   }
