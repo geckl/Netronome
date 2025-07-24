@@ -331,7 +331,9 @@ function App() {
           //     container: document.getElementById('zoomview-container')
           // },
           overview: {
-            container: document.getElementById('overview-container')
+            container: document.getElementById('overview-container'),
+            waveformColor: "#FFFFFF",
+            playheadColor: "#808080"
           },
           player: player,
           webAudio: {
