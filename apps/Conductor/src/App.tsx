@@ -6,28 +6,33 @@ import { useState, useEffect, useRef } from 'react';
 import io, { Socket } from 'socket.io-client';
 import InputDropdown from './components/Inputs';
 import React from 'react';
-import { QRCodeSVG } from 'qrcode.react';
-import { Connection, DeviceType, JoinButton, Performer } from './types';
-import { Button, Flex, HStack, Spacer, VStack } from "@chakra-ui/react"
-import Demo from "./components/Connections/ConnectionsDrawer"
+import { Connection, ConnectionStatus, JoinButton, Performer } from './types';
+import { Button, CloseButton, HStack, Spacer, VStack } from "@chakra-ui/react"
 import ConnectionsDrawer from './components/Connections/ConnectionsDrawer';
 import { TempoSlider } from './components/Tempo/TempoSlider';
-import { convertTime, getDevices, timer } from './util';
+import { convertTime, timer } from './util';
 import { BacktrackButton } from './components/Backtrack/BacktrackButton';
 import { VolumeSlider } from './components/Volume/VolumeSlider';
+import Peaks from 'peaks.js';
+import ConnectPopup from './components/Connections/ConnectPopup';
 
 // var backtrack: Tone.Player | null = null;
 
 function App() {
 
-  const [connectionState, setConnectionState] = useState<Connection>("Disconnected");
+  const [connectionState, setConnectionState] = useState<ConnectionStatus>("Disconnected");
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isPlaying, setIsPlaying] = useState(false)
   const [ipAddress, setIpAddress] = useState("");
   const [members, setMembers] = useState<Performer[]>([]);
   const serverOffset = useRef<number>(0);
   const backtrack = useRef<Tone.Player>(null);
+  const [isBacktrack, setIsBacktrack] = useState(false);
   const volume = useRef<Tone.Gain>(null);
+  const tempo = useRef<number>(60);
+  const peaks = useRef(null);
+  const updatePlayhead = useRef(null);
+  //const [tempo, setTempo] = useState<number>(60);
   // const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]); //MediaDeviceInfo
   // const [selectedAudioId, setSelectedAudioId] = useState(null);
   // const [timeOrigin, setTimeOrigin] = useState(window.performance.timeOrigin);
@@ -63,13 +68,10 @@ function App() {
       setMembers(members);
     });
 
-    socketInstance.on("status-update", (cb: (ip: boolean, t: number, p: number | string) => void) => {
+    socketInstance.on("status-update", (cb: (ip: boolean, t: number, p: number) => void) => {
       console.log("status update!");
       const targetTime = convertTime("Server", Tone.now(), serverOffset);
-      console.log(targetTime);
-      const position: number | string = Tone.getTransport().getSecondsAtTime(Tone.now());
-      console.log(position);
-      console.log(Tone.getTransport().state === "started");
+      const position: number = Tone.getTransport().getSecondsAtTime(Tone.now());
       cb(Tone.getTransport().state === "started", targetTime, position);
     });
 
@@ -135,6 +137,17 @@ function App() {
         let meanOffset = middleOffsets.reduce((a, b) => a + b) / (middleOffsets.length);
         console.log("Mean: ", meanOffset);
         serverOffset.current = meanOffset;
+
+        socket.on("server-change-tempo", (tempo: number) => {
+          console.log("Server Tempo: ", tempo);
+          setTempo(tempo);
+        });
+
+        socket.on("server-backtrack", (arrayBuffer: ArrayBuffer) => {
+          setBacktrack(arrayBuffer);
+          console.log("Server Backtrack: ", arrayBuffer);
+        });
+
         socket.emit("conductor-sync-orchestra", latencies);
       }
       await synchronize();
@@ -171,35 +184,216 @@ function App() {
     }
   }
 
+  function setTempo(tempo) {
+    console.log("Change Tempo!");
+    if (socket) {
+      const targetTime = convertTime("Server", Tone.immediate(), serverOffset)
+      console.log("Target Time: ", targetTime);
+      const position = "0:0:0";
+      socket.emit("conductor-change-tempo", targetTime, position, tempo, (newTargetTime: number) => {
+        console.log("New Target Time: ", newTargetTime);
+        let time2 = convertTime("Client", newTargetTime, serverOffset);
+        Tone.getTransport().bpm.setValueAtTime(tempo, time2);
+      });
+    }
+  }
+
+  function readBacktrackFile(audioFile: File | null) {
+    if (socket) {
+      if (audioFile === null) {
+        socket.emit("conductor-backtrack", null);
+        console.log("Backtrack cleared");
+      } else {
+        const stream = audioFile.stream()
+        const reader = stream.getReader();
+        const readChunk = () => {
+          reader.read().then(({ done, value }) => {
+            if (done) {
+              console.log("Stream finished");
+              return;
+            }
+            socket.emit("conductor-backtrack", value);
+            // Continue reading the next chunk
+            readChunk();
+          });
+        };
+        // Start reading the stream
+        readChunk();
+      }
+    }
+  }
+
+  function setBacktrack(arrayBuffer: ArrayBuffer | null) {
+
+    if (arrayBuffer) {
+      setIsBacktrack(true);
+      // Convert array buffer into audio buffer
+      Tone.getContext().decodeAudioData(arrayBuffer).then((audioBuffer) => {
+        backtrack.current = new Tone.Player(audioBuffer).sync().start(0).toDestination();
+
+        const player = {
+          externalPlayer: backtrack.current,
+          eventEmitter: null,
+
+          init: function (eventEmitter) {
+            console.log("init backtrack!");
+            this.eventEmitter = eventEmitter;
+
+            // this.externalPlayer.sync();
+            // this.externalPlayer.start();
+
+            Tone.getTransport().position = "0:0:0";
+
+            updatePlayhead.current = Tone.getTransport().scheduleRepeat(() => {
+              const time = this.getCurrentTime();
+              eventEmitter.emit('player.timeupdate', time);
+
+              if (time >= this.getDuration()) {
+                Tone.getTransport().stop();
+              }
+            }, 0.25);
+
+            return Promise.resolve();
+          },
+
+          destroy: function () {
+            console.log("destroy backtrack!");
+            // Tone.getContext().dispose();
+            backtrack.current.dispose();
+            Tone.getTransport().clear(updatePlayhead.current);
+            // if (peaks.current) {
+            //   peaks.current.destroy();
+            // }
+
+            backtrack.current = null;
+
+            this.externalPlayer = null;
+            this.eventEmitter = null;
+          },
+
+          setSource: function (opts) {
+            console.log("setSource backtrack!");
+            if (this.isPlaying()) {
+              this.pause();
+            }
+
+            // Update the Tone.js Player object with the new AudioBuffer
+            this.externalPlayer.buffer.set(opts.webAudio.audioBuffer);
+            return Promise.resolve();
+          },
+
+          play: async function () {
+            console.log("play backtrack!");
+            togglePlayback(true)
+            this.eventEmitter.emit('player.playing', this.getCurrentTime());
+            return Promise.resolve();
+          },
+
+          pause: function () {
+            console.log("pause backtrack!");
+            // Tone.getTransport().pause();
+
+            this.eventEmitter.emit('player.pause', this.getCurrentTime());
+          },
+
+          isPlaying: function () {
+            return Tone.getTransport().state === "started";
+          },
+
+          seek: async function (time) {
+            console.log("seek backtrack! ");
+            const position = Tone.Time(time, "s").toBarsBeatsSixteenths();
+            if (Tone.getTransport().state === "started") {
+              togglePlayback(true, position);
+            } else {
+              Tone.getTransport().position = position;
+            }
+
+            this.eventEmitter.emit('player.seeked', this.getCurrentTime());
+            this.eventEmitter.emit('player.timeupdate', this.getCurrentTime());
+          },
+
+          isSeeking: function () {
+            return false;
+          },
+
+          getCurrentTime: function () {
+            return Tone.getTransport().seconds;
+          },
+
+          getDuration: function () {
+            return this.externalPlayer.buffer.duration;
+          }
+        };
+
+        const options = {
+          // zoomview: {
+          //     container: document.getElementById('zoomview-container')
+          // },
+          overview: {
+            container: document.getElementById('overview-container')
+          },
+          player: player,
+          webAudio: {
+            audioBuffer: audioBuffer,
+            scale: 128,
+            multiChannel: false
+          },
+          keyboard: true,
+          showPlayheadTime: true,
+          zoomLevels: [128, 256, 512, 1024, 2048, 4096]
+        };
+
+        Peaks.init(options, function (err, peaksInstance) {
+          if (err) {
+            console.error(err.message);
+            return;
+          }
+          peaks.current = peaksInstance;
+        });
+      }).catch((error) => {
+        setIsBacktrack(false);
+        console.error("Backtrack error: ", error);
+      }
+      );
+    } else {
+      if (backtrack.current) {
+        peaks.current.destroy();
+        socket.emit("conductor-backtrack", null);
+        setIsBacktrack(false);
+      }
+    }
+  }
+
   return (
-    <div className="App">
-      <VStack minHeight={"100%"} >
+    <div className="App" >
+      <VStack h="100vh" w="100vw" justifyContent="top" alignItems="center" spacing={4} bg="brand.900">
         <header>
+          <p>
+            NETRONOME (CONDUCTOR MODE)
+          </p>
           <img src={logo} className="App-logo" alt="logo" />
         </header>
         <ConnectionsDrawer members={members}></ConnectionsDrawer>
+        <ConnectPopup ipAddress={ipAddress}></ConnectPopup>
         <Button onClick={() => joinOrchestra()} disabled={connectionState === "Connecting"} className="Join-button" bg="brand.300">
           {JoinButton[connectionState]}
           <div className="spinner-3" hidden={(connectionState !== "Connecting")}></div>
         </Button>
-        <p>
-          NETRONOME (CONDUCTOR MODE)
-        </p>
         <Button className="controls" bg="brand.700" onClick={async () => togglePlayback(!isPlaying, Tone.getTransport().position)} hidden={connectionState !== "Connected"} >{isPlaying ? "Stop" : "Play"}</Button>
-        {connectionState === "Connected" && <VolumeSlider volume={volume} />}
-        {connectionState === "Connected" && <TempoSlider socket={socket} serverOffset={serverOffset} />}
-        <Spacer />
-        {/* <InputDropdown class="controls" inputs={audioInputs} setSelectedAudioId={setSelectedAudioId} isJoined={!isJoined} ></InputDropdown> */}
-        {connectionState === "Connected" && <BacktrackButton backtrack={backtrack} socket={socket} togglePlayback={togglePlayback} />}
-      </VStack>
-      <Spacer />
-      <footer>
-        <VStack>
-          <p>Connect to Netronome here:</p>
-          <QRCodeSVG value={ipAddress} ></QRCodeSVG>
+        {(connectionState === "Connected") ? (<VStack>
+          <VolumeSlider volume={volume} />
+          <TempoSlider tempo={tempo} setTempo={setTempo} />
           <Spacer />
-        </VStack>
-      </footer>
+          {!isBacktrack ? <BacktrackButton setBacktrack={setBacktrack} readBacktrackFile={readBacktrackFile} /> : <HStack>
+            <div id="overview-container"></div>
+            <CloseButton variant="ghost" colorPalette="blue" onClick={() => setBacktrack(null)} />
+          </HStack>}
+        </VStack>) : null}
+        {/* <InputDropdown class="controls" inputs={audioInputs} setSelectedAudioId={setSelectedAudioId} isJoined={!isJoined} ></InputDropdown> */}
+      </VStack>
+      {/* <footer>
+      </footer> */}
     </div>
   );
 }

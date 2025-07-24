@@ -20,7 +20,7 @@ export type RTCConnectionStatus = 'Disconnected' | 'Connecting' | 'Connected';
 export const JoinButton = {
  'Disconnected': "Join",
  'Connecting': "",
- 'Connected': "Disconnect"
+ 'Connected': "Resync"
 };
 
 export type DeviceType = "Client" | "Server"

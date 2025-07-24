@@ -17,15 +17,12 @@ const configuration = {
   iceCandidatePoolSize: 10,
 };
 
-//var backtrack: Tone.Player | null = null;
 var backtrackBufferTotal: ArrayBuffer = new ArrayBuffer();
-
-//const backtrack = new Tone.Player().sync().start("1m").toDestination();
 
 function App() {
 
   const connectionState = useRef<ConnectionStatus>("Disconnected");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const serverOffset = useRef<number>(0);
@@ -33,12 +30,8 @@ function App() {
   const backtrack = useRef<Tone.Player>(null);
   const [colorMode, setColorMode] = useState<string>("#61DAFB");
 
-
   // const [currentTime, setCurrentTime] = useState(0);
   //const [timeOrigin, setTimeOrigin] = useState(window.performance.timeOrigin);
-
-  // console.log(backtrack);
-
 
   useEffect(() => {
     console.log("State: ", connectionState);
@@ -71,9 +64,16 @@ function App() {
       }
     });
 
+    socketInstance.on('reconnect', function () {
+      console.log('you have been reconnected');
+      connectionState.current = "Connected";
+      setSocket(socketInstance);
+    });
+
     socketInstance.on('disconnect', function () {
-      socket.emit("rtc-message", { type: "bye", senderId: socketInstance.id });
+      socketInstance.emit("rtc-message", { type: "bye", senderId: socketInstance.id });
       connectionState.current = "Disconnected";
+      setSocket(null);
     });
 
     // socketInstance.on('audioStream', async (audioData) => {
@@ -122,8 +122,6 @@ function App() {
           console.log("Data Channel Closed!!");
         };
 
-        // pc.ontrack = (e) => (remoteVideo.current.srcObject = e.streams[0]);
-        // localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
         const offer = await pc.createOffer();
         socketInstance.emit("rtc-message", { type: "offer", sdp: offer.sdp, targetId: invitation.senderId, senderId: socketInstance.id });
         await pc.setLocalDescription(offer);
@@ -213,6 +211,7 @@ function App() {
     return () => {
       if (socketInstance) {
         socketInstance.disconnect();
+        setSocket(null);
       }
     };
   }, []);
@@ -261,11 +260,11 @@ function App() {
   }
 
 
-  function togglePlayback(play: boolean, time: number = 0, position: string| undefined = undefined) {
+  function togglePlayback(play: boolean, time: number = 0, position: string | undefined = undefined) {
     console.log("Toggle Playback: ", play, time, position);
     Tone.getTransport().pause();
     if (play) {
-      Tone.getTransport().start(time > Tone.now() ? time : Tone.now() , position);
+      Tone.getTransport().start(time > Tone.now() ? time : Tone.now(), position);
       setIsPlaying(true);
     } else {
       setIsPlaying(false);
@@ -358,26 +357,35 @@ function App() {
   }
 
   async function resyncOrchestra() {
+    setIsSyncing(true);
     const latencies = await synchronize();
     socket.emit("sync-orchestra", latencies);
+    setIsSyncing(false);
+    connectionState.current = "Connected";
   }
 
   async function joinOrchestra() {
     if (connectionState.current === "Connected") {
+      resyncOrchestra();
+      // connectionState.current = "Disconnected";
+      // togglePlayback(false);
+      // Tone.getContext().dispose();
+      // if (backtrack.current) {
+      //   backtrack.current.dispose();
+      //   backtrack.current = null;
+      // }
+      // if (volume.current) {
+      //   volume.current.dispose();
+      //   volume.current = null;
+      // }
+      // setColorMode("#61DAFB");
+      return;
+    } else if (!socket) {
+      console.error("Socket is not connected!");
       connectionState.current = "Disconnected";
-      togglePlayback(false);
-      Tone.getContext().dispose();
-        if (backtrack.current) {
-          backtrack.current.dispose();
-          backtrack.current = null;
-        }
-        if (volume.current) {
-          volume.current.dispose();
-          volume.current = null;
-        }
-        setColorMode("#61DAFB");
+      return;
     } else {
-      setIsLoading(true);
+      setIsSyncing(true);
       console.log("Join Orchestra!");
       connectionState.current = "Connecting"
 
@@ -388,8 +396,6 @@ function App() {
 
       // This must be called on a button click for browser compatibility
       await Tone.start();
-      const latencies = await synchronize();
-      connectionState.current = "Connected";
 
       socket.on('start', (targetTime: number, position: string = "0:0:0") => {
         console.log(`start: ${targetTime} at position ${position}`);
@@ -398,13 +404,13 @@ function App() {
           togglePlayback(true, time, position);
         }
       });
-  
+
       socket.on('stop', (data) => {
         console.log(`stop`);
         setIsPlaying(false);
         togglePlayback(false);
       });
-  
+
       socket.on('change-tempo', (targetTime: number, position: string = "0:0:0", newTempo: number) => {
         if (connectionState.current === "Connected") {
           console.log("change-tempo");
@@ -413,28 +419,44 @@ function App() {
         }
       });
 
-      socket.on("backtrack", (backtrackBuffer: ArrayBuffer) => {
-        console.log("New Backing Track Data: ", backtrackBuffer);
-          console.log("add backtrack");
+      socket.on("backtrack", (backtrackBuffer: ArrayBuffer | null) => {
+        if (backtrack.current) {
+          backtrack.current.stop();
+          backtrack.current.dispose();
+          backtrack.current = null;
+        }
+        if (backtrackBuffer === null) {
+          console.log("Remove Backtrack");
+          backtrackBufferTotal = new ArrayBuffer();
+          return;
+        } else {
+          console.log("New Backtrack: ", backtrackBuffer);
           var appendBuffer = function (buffer1: ArrayBuffer, buffer2: ArrayBuffer) {
             var tmp = new Uint8Array(buffer1.byteLength + buffer2.byteLength);
             tmp.set(new Uint8Array(buffer1), 0);
             tmp.set(new Uint8Array(buffer2), buffer1.byteLength);
             return tmp.buffer;
           };
-  
+
           const newBuffer = appendBuffer(backtrackBufferTotal, backtrackBuffer);
           backtrackBufferTotal = newBuffer;
-  
+
           // Convert array buffer into audio buffer
           Tone.getContext().decodeAudioData(newBuffer.slice(0)).then((audioBuffer) => {
-            backtrack.current?.dispose();
-            backtrack.current = new Tone.Player(audioBuffer).sync().start(0).toDestination();
-            console.log("added backtrack!");
+            backtrack.current?.stop();
+            backtrack.current = new Tone.Player(audioBuffer, () => {
+              console.log("Backtrack loaded!");
+              // if (Tone.getTransport().state === "started") {
+              //   backtrack.current.start(Tone.now(), Tone.Time(Tone.getTransport().position).toSeconds()).toDestination();
+              // };
+            }
+            ).sync().start(0).toDestination();
+
           }).catch((error) => {
             console.error("Error decoding audio data: ", error);
           }
           );
+        }
       });
 
       //create a synth and connect it to the main output (your speakers)
@@ -450,8 +472,11 @@ function App() {
         }, time + .1)
       }, "4n", 0);
 
+      const latencies = await synchronize();
+      connectionState.current = "Connected";
+
       socket.emit("sync-orchestra", latencies);
-      setIsLoading(false);
+      setIsSyncing(false);
     };
   }
 
@@ -464,25 +489,22 @@ function App() {
   }
 
   return (
-    <div className="App">
-      <div minHeight={"100%"}>
+    <div className="App" style={{ backgroundColor: "#00161e" }}>
+      <div h="100vh" w="100vw" justify-content="top" align-items="center" spacing={4} bg="white">
         <header className="App-header">
-          {/* <img src={logo} className="App-logo" alt="logo" /> */}
+        <p>
+          NETRONOME
+        </p>
           <Logo className="App-logo" fill={colorMode} />
         </header>
-        <p>
-          NETRONOME {connectionState.current !== "Connected" ? "" : (!isPlaying ? "(Stopped)" : "(Playing)")}
-        </p>
-        {/* <button onClick={() => togglePlayback()}>{isPlaying ? "Stop" : "Play"}</button> */}
-        <button onClick={() => joinOrchestra()} disabled={isLoading} className="Join-button">
-          {JoinButton[connectionState.current]}
-          <div className="spinner-3" hidden={!isLoading}></div>
+        <button onClick={() => joinOrchestra()} disabled={isSyncing} className="Join-button">
+          {!isSyncing && JoinButton[connectionState.current]}
+          <div className="spinner-3" hidden={!isSyncing}></div>
         </button>
         {connectionState.current === "Connected" &&
           (<div className="Volume-slider">
             <label for="volume" size={"sm"}>Volume</label>
             <input type="range" id="volume" min={0} max={1} step={.01} defaultValue={0.5} onChange={onVolumeChange} />
-            <button onClick={() => resyncOrchestra()} size="sm" bg="brand.500" position={"absolute"} right={1} top={1}>Resync</button>
           </div>)}
       </div>
     </div>

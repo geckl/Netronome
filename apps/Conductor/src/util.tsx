@@ -73,26 +73,6 @@ export const streamAudio = ({ selectedAudioId, socket }: { selectedAudioId: stri
   }
 }
 
-export const streamFile = ({ audioFile, socket }: { audioFile: File, socket: Socket }) => {
-  if (audioFile && socket) {
-    const stream = audioFile.stream()
-    const reader = stream.getReader();
-    const readChunk = () => {
-      reader.read().then(({ done, value }) => {
-        if (done) {
-          console.log("Stream finished");
-          return;
-        }
-        socket.emit("conductor-backtrack", value);
-        // Continue reading the next chunk
-        readChunk();
-      });
-    };
-    // Start reading the stream
-    readChunk();
-  }
-}
-
 export const playAudio = (audioData: any) => {
   var newData = audioData.split(";");
   newData[0] = "data:audio/ogg;";
