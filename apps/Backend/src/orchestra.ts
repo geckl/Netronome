@@ -5,10 +5,10 @@ class Orchestra {
     public isPlaying: boolean = false;
     public conductor: Performer | null = null;
     public performers: Performer[] = [];
-    public tempo: number = 120;
+    public tempo: number = 60;
     public baseTime: number = 0;
     public totalLatency: number = 0;
-    public backtrack: string | ArrayBuffer | null = null;
+    public backtrack: ArrayBuffer | null = null;
     constructor() { }
 
     public addPerformer(p: Performer) {

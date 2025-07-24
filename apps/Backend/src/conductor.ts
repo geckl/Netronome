@@ -2,6 +2,7 @@ import { Namespace, Socket } from "socket.io";
 import { Performer } from "./types.js";
 
 import { orc, ipAddress } from "./server.ts"
+import { arrayBuffer } from "stream/consumers";
 
 
 const conductorRoutes = (conductors: Namespace, performers: Namespace) => {
@@ -40,6 +41,10 @@ const conductorRoutes = (conductors: Namespace, performers: Namespace) => {
             conductor.status = "Connected"
             // orc.addPerformer(conductor);
             // conductors.emit("update-members", members);
+            socket.emit("server-change-tempo", orc.tempo);
+            if(orc.backtrack) {
+                socket.emit('server-backtrack', orc.backtrack);
+            }
             console.log("conductor synced to orchestra: ", conductor);
         });
 
@@ -64,12 +69,26 @@ const conductorRoutes = (conductors: Namespace, performers: Namespace) => {
             const newTargetTime = targetTime + orc.totalLatency;
             performers.emit('change-tempo', newTargetTime, position, newTempo);
             cb(newTargetTime);
+            orc.tempo = newTempo;
         })
 
-        socket.on('conductor-backtrack', (backtrack: string | ArrayBuffer | null) => {
+        socket.on('conductor-backtrack', (backtrack: ArrayBuffer | null) => {
+            var appendBuffer = function (buffer1: ArrayBuffer, buffer2: ArrayBuffer) {
+                var tmp = new Uint8Array(buffer1.byteLength + buffer2.byteLength);
+                tmp.set(new Uint8Array(buffer1), 0);
+                tmp.set(new Uint8Array(buffer2), buffer1.byteLength);
+                return tmp.buffer;
+              };
             console.log("New Backtrack: ", backtrack);
             performers.emit('backtrack', backtrack);
-            orc.backtrack = backtrack;
+            if(backtrack === null)
+            {
+                orc.backtrack = null;
+            } else if(orc.backtrack === null) {
+                orc.backtrack = backtrack;
+            } else {
+                orc.backtrack = appendBuffer(orc.backtrack, backtrack);
+            }
         })
 
         // Handle incoming audio stream

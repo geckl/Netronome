@@ -58,9 +58,11 @@ const performerRoutes = (performers: Namespace, conductors: Namespace) => {
             // socket.join("ensemble");
             if (orc.conductor) {
                 conductors.sockets.get(orc.conductor.id)?.emit("update-members", members);
-                conductors.sockets.get(orc.conductor.id)?.emit("status-update", (isPlaying: boolean, time: number, position: number | string) => {
+                conductors.sockets.get(orc.conductor.id)?.emit("status-update", (isPlaying: boolean, targetTime: number, position: number) => {
                     if (isPlaying) {
-                        socket.emit('start', time, position);
+                        const newTargetTime = targetTime + orc.totalLatency;
+                        const newPosition = position + (orc.totalLatency / 1000);
+                        socket.emit('start', newTargetTime, newPosition);
                     }
                 });
             }
