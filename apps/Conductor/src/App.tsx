@@ -14,7 +14,7 @@ import { convertTime, timer } from './util';
 import { BacktrackButton } from './components/Backtrack/BacktrackButton';
 import { VolumeSlider } from './components/Volume/VolumeSlider';
 import Peaks from 'peaks.js';
-import ConnectPopup from './components/Connections/ConnectPopup';
+import SharePopup from './components/Connections/SharePopup';
 
 // var backtrack: Tone.Player | null = null;
 
@@ -68,11 +68,12 @@ function App() {
       setMembers(members);
     });
 
-    socketInstance.on("status-update", (cb: (ip: boolean, t: number, p: number) => void) => {
+    socketInstance.on("status-update", (cb: (ip: boolean, t: number, p: number, tp: number) => void) => {
       console.log("status update!");
-      const targetTime = convertTime("Server", Tone.now(), serverOffset);
+      const targetTime = convertTime("Server", Tone.now(), serverOffset.current);
       const position: number = Tone.getTransport().getSecondsAtTime(Tone.now());
-      cb(Tone.getTransport().state === "started", targetTime, position);
+      console.log("Tempo: ", tempo.current);
+      cb(Tone.getTransport().state === "started", targetTime, position, tempo.current);
     });
 
     // socketInstance.on('audioStream', (audioData) => {
@@ -140,7 +141,7 @@ function App() {
 
         socket.on("server-change-tempo", (tempo: number) => {
           console.log("Server Tempo: ", tempo);
-          setTempo(tempo);
+          setTempo([tempo]);
         });
 
         socket.on("server-backtrack", (arrayBuffer: ArrayBuffer) => {
@@ -170,10 +171,10 @@ function App() {
     // }
     if (socket) {
       if (play) {
-        const targetTime = convertTime("Server", Tone.now(), serverOffset);
+        const targetTime = convertTime("Server", Tone.now(), serverOffset.current);
         socket.emit('conductor-start', targetTime, position, (newTargetTime: number) => {
           // console.log(targetTime, "->", newTargetTime - serverOffset.current);
-          const time2 = convertTime("Client", newTargetTime, serverOffset);
+          const time2 = convertTime("Client", newTargetTime, serverOffset.current);
           Tone.getTransport().start(time2, position);
           setIsPlaying(true)
         });
@@ -184,16 +185,16 @@ function App() {
     }
   }
 
-  function setTempo(tempo) {
-    console.log("Change Tempo!");
+  function setTempo(newTempo) {
+    tempo.current = newTempo[0];
     if (socket) {
-      const targetTime = convertTime("Server", Tone.immediate(), serverOffset)
+      const targetTime = convertTime("Server", Tone.immediate(), serverOffset.current)
       console.log("Target Time: ", targetTime);
       const position = "0:0:0";
-      socket.emit("conductor-change-tempo", targetTime, position, tempo, (newTargetTime: number) => {
+      socket.emit("conductor-change-tempo", targetTime, position, newTempo, (newTargetTime: number) => {
         console.log("New Target Time: ", newTargetTime);
-        let time2 = convertTime("Client", newTargetTime, serverOffset);
-        Tone.getTransport().bpm.setValueAtTime(tempo, time2);
+        let time2 = convertTime("Client", newTargetTime, serverOffset.current);
+        Tone.getTransport().bpm.setValueAtTime(newTempo, time2);
       });
     }
   }
@@ -377,7 +378,7 @@ function App() {
           <img src={logo} className="App-logo" alt="logo" />
         </header>
         <ConnectionsDrawer members={members}></ConnectionsDrawer>
-        <ConnectPopup ipAddress={ipAddress}></ConnectPopup>
+        <SharePopup ipAddress={ipAddress}></SharePopup>
         <Button onClick={() => joinOrchestra()} disabled={connectionState === "Connecting"} className="Join-button" bg="brand.300">
           {JoinButton[connectionState]}
           <div className="spinner-3" hidden={(connectionState !== "Connecting")}></div>

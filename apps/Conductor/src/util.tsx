@@ -85,13 +85,13 @@ export const playAudio = (audioData: any) => {
   audio.play();
 }
 
-export const convertTime = (destination: DeviceType, time: number, serverOffset: any) => {
+export const convertTime = (destination: DeviceType, time: number, serverOffset: number) => {
   if (destination === "Server") {
     // Client time in seconds
-    return (time * 1000) + serverOffset.current;
+    return (time * 1000) + serverOffset;
   } else if (destination === "Client") {
     //Server time in milliseconds
-    return (time - serverOffset.current) / 1000;
+    return (time - serverOffset) / 1000;
   } else {
     throw Error(`Not a valid conversion (options are "server" or "client"`);
   }

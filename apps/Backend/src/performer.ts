@@ -31,9 +31,10 @@ const performerRoutes = (performers: Namespace, conductors: Namespace) => {
             cb(latencyPlusOffset);
         });
 
-        socket.on("calculate-latency-server-1", (targetId) => {
+        socket.on("calculate-latency-server-1", (targetId: string, cb: () => void) => {
             console.log("calculate-latency-server: ", targetId);
             socket.to(targetId).volatile.emit("calculate-latency-server-2", socket.id);
+            cb();
         });
 
         socket.on("calculate-latency-client-2", (targetId) => {
@@ -58,11 +59,12 @@ const performerRoutes = (performers: Namespace, conductors: Namespace) => {
             // socket.join("ensemble");
             if (orc.conductor) {
                 conductors.sockets.get(orc.conductor.id)?.emit("update-members", members);
-                conductors.sockets.get(orc.conductor.id)?.emit("status-update", (isPlaying: boolean, targetTime: number, position: number) => {
+                conductors.sockets.get(orc.conductor.id)?.emit("status-update", (isPlaying: boolean, targetTime: number, position: number, tempo: number) => {
                     if (isPlaying) {
+                        console.log("Tempo: ", tempo);
                         const newTargetTime = targetTime + orc.totalLatency;
                         const newPosition = position + (orc.totalLatency / 1000);
-                        socket.emit('start', newTargetTime, newPosition);
+                        socket.emit('start', newTargetTime, newPosition, tempo);
                     }
                 });
             }
@@ -89,7 +91,11 @@ const performerRoutes = (performers: Namespace, conductors: Namespace) => {
 
         socket.on("rtc-message", (message) => {
             console.log("rtc-message: ", message);
-            socket.to(message.targetId).emit("rtc-message", message);
+            if(message.targetId) {
+                socket.to(message.targetId).emit("rtc-message", message);
+            } else {
+                socket.broadcast.emit("rtc-message", message);
+            }
         });
 
         socket.on('disconnect', () => {

@@ -4,7 +4,7 @@ import * as Tone from "tone";
 import Woodblock from './sounds/woodblock.wav'
 import React, { useState, useEffect, useRef } from 'react';
 import io, { connect, Socket } from 'socket.io-client';
-import { convertTime, playAudio, sendMessage, throwIfUndefined, timer } from './util';
+import { convertTime, onewaySync, playAudio, sendMessage, throwIfUndefined, timer } from './util';
 import { Connection, ConnectionStatus, DeviceType, JoinButton, LatencyData, Message, RTCConnection, RTCConnectionStatus } from './types';
 
 const rtcConnections = new Map<string, RTCConnection>();
@@ -29,13 +29,22 @@ function App() {
   const volume = useRef<Tone.Gain>(null);
   const backtrack = useRef<Tone.Player>(null);
   const [colorMode, setColorMode] = useState<string>("#61DAFB");
+  const oneWayOffsets = useRef<number[]>([]);
+  const [oneWayOffsetAverage, setOneWayOffsetAverage] = useState<number>(0);
 
   // const [currentTime, setCurrentTime] = useState(0);
   //const [timeOrigin, setTimeOrigin] = useState(window.performance.timeOrigin);
 
+
   useEffect(() => {
     console.log("State: ", connectionState);
   }, [connectionState]);
+
+  useEffect(() => {
+    console.log("One Way Offset Average: ", oneWayOffsetAverage);
+  }, [oneWayOffsetAverage]);
+
+
 
   useEffect(() => {
     const socketInstance = io();
@@ -85,14 +94,30 @@ function App() {
       try {
         let pc = new RTCPeerConnection(configuration);
         let dc = pc.createDataChannel("rtc-data-channel", { negotiated: true, id: 0 });
-        let connection = { pc, dc };
-        rtcConnections.set(invitation.senderId, connection);
+        let connection: RTCConnection = { pc, dc };
+        let targetId = invitation.senderId;
+        rtcConnections.set(targetId, connection);
+
+        dc.onopen = (event) => {
+          console.log("Data Channel Open!");
+          // sendMessage(connection, { command: "talk", value: "Hi you!" });
+          onewaySync(targetId, connection, socketInstance).then((oneWayOffset) => {
+            if (oneWayOffset !== undefined) {
+              oneWayOffsets.current.push(oneWayOffset);
+              setOneWayOffsetAverage(oneWayOffsets.current.reduce((a, b) => a + b) / oneWayOffsets.current.length);
+              console.log("One Way Offsets: ", oneWayOffsets.current);
+            }
+            // socketInstance.emit("rtc-message", { type: "bye", targetId: targetId, senderId: socketInstance.id });
+          }).catch((error) => {
+            console.error("Synchronization error: ", error);
+          });
+        };
 
         pc.onicecandidate = (e) => {
           throwIfUndefined(socketInstance.id);
           const message: Message = {
             type: "candidate",
-            targetId: invitation.senderId,
+            targetId: targetId,
             senderId: socketInstance.id,
             candidate: null,
           };
@@ -104,15 +129,10 @@ function App() {
           socketInstance.emit("rtc-message", message);
         };
 
-        dc.onopen = (event) => {
-          console.log("Data Channel Open!");
-          sendMessage(connection, { command: "talk", value: "Hi you!" });
-        };
-
         dc.onmessage = (event) => {
           const message = JSON.parse(event.data).message;
           if (message.command === "calculate-latency-client-1") {
-            console.log(event.data);
+            console.log("Recieved Latency Message: ", event.data);
             const senderId = message.senderId;
             socketInstance.volatile.emit("calculate-latency-client-2", senderId);
           }
@@ -136,13 +156,29 @@ function App() {
         let pc = new RTCPeerConnection(configuration);
         let dc = pc.createDataChannel("rtc-data-channel", { negotiated: true, id: 0 });
         let connection = { pc, dc };
-        rtcConnections.set(offer.senderId, connection);
+        let targetId = offer.senderId;
+        rtcConnections.set(targetId, connection);
+
+        dc.onopen = (event) => {
+          console.log("Data Channel Open!");
+          // sendMessage(connection, { command: "talk", value: "Hi you!" });
+          onewaySync(targetId, connection, socketInstance).then((oneWayOffset) => {
+            if (oneWayOffset) {
+              oneWayOffsets.current.push(oneWayOffset);
+              setOneWayOffsetAverage(oneWayOffsets.current.reduce((a, b) => a + b) / oneWayOffsets.current.length);
+              console.log("One Way Offsets: ", oneWayOffsets.current);
+            }
+            // socketInstance.emit("rtc-message", { type: "bye", targetId: targetId, senderId: socketInstance.id });
+          }).catch((error) => {
+            console.error("Synchronization error: ", error);
+          });
+        };
 
         pc.onicecandidate = (e) => {
           throwIfUndefined(socketInstance.id);
           const message: Message = {
             type: "candidate",
-            targetId: offer.senderId,
+            targetId: targetId,
             senderId: socketInstance.id,
             candidate: null
           };
@@ -154,15 +190,10 @@ function App() {
           socketInstance.emit("rtc-message", message);
         };
 
-        dc.onopen = (event) => {
-          console.log("Data Channel Open!");
-          sendMessage(connection, { command: "talk", value: "Hi you!" });
-        };
-
         dc.onmessage = (event) => {
           const message = JSON.parse(event.data).message;
           if (message.command === "calculate-latency-client-1") {
-            console.log(event.data);
+            console.log("Recieved Latency Message: ", event.data);
             const senderId = message.senderId;
             socketInstance.volatile.emit("calculate-latency-client-2", senderId);
           }
@@ -264,6 +295,7 @@ function App() {
     console.log("Toggle Playback: ", play, time, position);
     Tone.getTransport().pause();
     if (play) {
+      const offsetOneWay = oneWayOffsets.current.length > 0 ? oneWayOffsets.current.reduce((a, b) => a + b) / oneWayOffsets.current.length : 0;
       Tone.getTransport().start(time > Tone.now() ? time : Tone.now(), position);
       setIsPlaying(true);
     } else {
@@ -272,70 +304,8 @@ function App() {
   }
 
   async function synchronize() {
-    function onewaySync(targetId: string, rtcConnection: RTCConnection): Promise<number> {
-      let timeout = 10000;
-      return new Promise<number>((resolve, reject) => {
-        let timer;
-        let serverLatency: number, clientLatency: number;
-
-        const start = Tone.immediate() * 1000;
-        sendMessage(rtcConnection, { command: "calculate-latency-client-1", senderId: socket.id });
-        socket.emit("calculate-latency-server-1", targetId);
-
-        function responseHandler() {
-          // resolve promise with the value we got
-          if (serverLatency != null && clientLatency != null) {
-            const oneWayOffset: number = (serverLatency - clientLatency) / 6;
-            resolve(oneWayOffset);
-            clearTimeout(timer);
-          }
-        }
-
-        socket.on(`calculate-latency-client-${targetId}`, () => {
-          console.log("calculate-latency-client response received");
-          const stop1 = Tone.immediate() * 1000;
-          clientLatency = stop1 - start;
-          responseHandler();
-        });
-
-        rtcConnection.dc.addEventListener('message', event => {
-          const message = JSON.parse(event.data).message;
-          if (message.command === `calculate-latency-server-${targetId}`) {
-            console.log("calculate-latency-server response received");
-            const senderId = message.sender;
-            const stop2 = Tone.immediate() * 1000;
-            serverLatency = stop2 - start;
-            responseHandler();
-
-          }
-        }, { once: false });
-
-        // set timeout so if a response is not received within a 
-        // reasonable amount of time, the promise will reject
-        timer = setTimeout(() => {
-          reject(new Error("timeout waiting for msg"));
-          socket.removeListener('msg', responseHandler);
-        }, timeout);
-
-      });
-    }
-
-    const oneWayOffsets: number[] = [];
-
-    await Promise.all(
-      Array.from(rtcConnections.entries()).filter((c) => c[1].dc.readyState === "open").map(
-        async ([id, rtcConnection]) => {
-          return onewaySync(id, rtcConnection).then((oneWayOffset) => {
-            oneWayOffsets.push(oneWayOffset);
-          }).catch((error) => {
-            console.error("Synchronization error: ", error);
-          });
-        }
-      )
-    )
-
-    const offsetOneWay = oneWayOffsets.length === 0 ? 0 : oneWayOffsets.reduce((a, b) => a + b) / oneWayOffsets.length;
-    console.log("One Way Offset: ", offsetOneWay);
+    // const offsetOneWay = oneWayOffsets.current.length > 0 ? oneWayOffsets.current.reduce((a, b) => a + b) / oneWayOffsets.current.length : 0;
+    // onsole.log("One Way Offset: ", oneWayOffsets, offsetOneWay);
 
     let latencies: number[] = [];
     let serverOffsets: number[] = [];
@@ -346,7 +316,7 @@ function App() {
         const latency = (Tone.immediate() * 1000) - start;
         console.log("Latency: ", latency);
         latencies.push(latency / 2);
-        serverOffsets.push((latencyPlusOffset - offsetOneWay - (latency / 2)));
+        serverOffsets.push((latencyPlusOffset - (latency / 2)));
       });
       await timer(500);
     }
@@ -397,10 +367,14 @@ function App() {
       // This must be called on a button click for browser compatibility
       await Tone.start();
 
-      socket.on('start', (targetTime: number, position: string = "0:0:0") => {
+      socket.on('start', (targetTime: number, position: string = "0:0:0", tempo: number | null = null) => {
+        if(tempo) {
+          console.log("Tempo: ", tempo);
+          Tone.getTransport().bpm.value = tempo;
+        }
         console.log(`start: ${targetTime} at position ${position}`);
         if (connectionState.current === "Connected") {
-          const time = convertTime("Client", targetTime, serverOffset);
+          const time = convertTime("Client", targetTime, serverOffset.current + oneWayOffsetAverage);
           togglePlayback(true, time, position);
         }
       });
@@ -414,7 +388,7 @@ function App() {
       socket.on('change-tempo', (targetTime: number, position: string = "0:0:0", newTempo: number) => {
         if (connectionState.current === "Connected") {
           console.log("change-tempo");
-          let time2 = convertTime("Client", targetTime, serverOffset);
+          let time2 = convertTime("Client", targetTime, serverOffset.current + oneWayOffsetAverage);
           Tone.getTransport().bpm.setValueAtTime(newTempo, time2);
         }
       });
@@ -485,16 +459,15 @@ function App() {
     if (volume.current) {
       volume.current.gain.value = value;
     }
-    console.log("Volume: ", value);
   }
 
   return (
     <div className="App" style={{ backgroundColor: "#00161e" }}>
       <div h="100vh" w="100vw" justify-content="top" align-items="center" spacing={4} bg="white">
         <header className="App-header">
-        <p>
-          NETRONOME
-        </p>
+          <p>
+            NETRONOME
+          </p>
           <Logo className="App-logo" fill={colorMode} />
         </header>
         <button onClick={() => joinOrchestra()} disabled={isSyncing} className="Join-button">

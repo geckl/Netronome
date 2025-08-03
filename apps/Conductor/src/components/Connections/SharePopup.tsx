@@ -1,13 +1,13 @@
 import React from "react";
 import { Button, Center, Dialog, QrCode } from "@chakra-ui/react";
 
-const ConnectPopup = ({ipAddress}: {ipAddress: string | null}) => {
+const SharePopup = ({ipAddress}: {ipAddress: string | null}) => {
 
     return(
         <Dialog.Root size="lg">
           <Dialog.Trigger asChild>
             <Button disabled={!ipAddress} size="sm" bg="brand.500" position={"absolute"} left={1} top={1}>
-              Connect
+              Share
             </Button>
           </Dialog.Trigger>
           <Dialog.Backdrop />
@@ -41,4 +41,4 @@ const ConnectPopup = ({ipAddress}: {ipAddress: string | null}) => {
         </Dialog.Root>
     )
 }
-export default ConnectPopup;
+export default SharePopup;

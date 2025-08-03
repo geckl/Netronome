@@ -53,7 +53,7 @@ const conductorRoutes = (conductors: Namespace, performers: Namespace) => {
             // console.log("Target Time: ", targetTime);
             // console.log("Total Latency: ", orc.totalLatency);
             const newTargetTime = targetTime + orc.totalLatency;
-            performers.emit('start', newTargetTime, position);
+            performers.emit('start', newTargetTime, position, orc.tempo);
             cb(newTargetTime);
             orc.isPlaying = true;
         });
