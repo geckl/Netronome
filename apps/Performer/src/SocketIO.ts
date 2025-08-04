@@ -17,6 +17,7 @@ export const initialSocketEvents = (
 ) => {
   socketInstance.on('connect', () => {
     console.log('Connected to server');
+    setSocket(socketInstance);
     socketInstance.emit("rtc-invite", { senderId: socketInstance.id });
   });
 
@@ -30,7 +31,9 @@ export const initialSocketEvents = (
   });
 
   socketInstance.on("calculate-latency-server-2", (targetId: string) => {
+    console.log("Recieved Latency Message: ", targetId);
     const connection = rtcConnections.get(targetId);
+    console.log("Connection: ", connection);
     if (connection) {
       sendMessage(connection, { command: `calculate-latency-server-${socketInstance.id}` });
     }
@@ -88,7 +91,7 @@ export const connectedSocketEvents = (
       console.log("Tempo: ", tempo);
       Tone.getTransport().bpm.value = tempo;
     }
-    console.log(`start: ${targetTime} at position ${position}`);
+    // console.log(`start: ${targetTime} at position ${position}`);
     if (connectionState.current === "Connected") {
       const time = convertTime("Client", targetTime, serverOffset.current + oneWayOffsetAverage);
       togglePlayback(true, time, position);

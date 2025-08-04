@@ -7,6 +7,8 @@ import io, { Socket } from 'socket.io-client';
 import { convertTime, synchronize, timer } from './util';
 import { ConnectionStatus, JoinButton } from './types';
 import { connectedSocketEvents, initialSocketEvents } from './SocketIO';
+import { ToastContainer, toast } from 'react-toastify';
+
 
 function App() {
 
@@ -20,6 +22,7 @@ function App() {
   const [colorMode, setColorMode] = useState<string>("#61DAFB");
   const oneWayOffsets = useRef<number[]>([]);
   const [oneWayOffsetAverage, setOneWayOffsetAverage] = useState<number>(0);
+  // const [timeOrigin, setTimeOrigin] = useState(window.performance.timeOrigin);
 
   // useEffect(() => {
   //   console.log("One Way Offset Average: ", oneWayOffsetAverage);
@@ -27,12 +30,12 @@ function App() {
 
   useEffect(() => {
     const socketInstance = io();
-    setSocket(socketInstance);
 
     // Add socketIO listeners needed for connection
     initialSocketEvents(socketInstance, setSocket, connectionState, oneWayOffsets, setOneWayOffsetAverage);
 
     return () => {
+      console.log("Unmount!");
       if (socketInstance) {
         socketInstance.disconnect();
         setSocket(null);
@@ -49,12 +52,16 @@ function App() {
   }
 
   async function joinOrchestra() {
+    if (!socket) {
+      console.error("Socket is not connected!");
+      console.log(socket);
+      connectionState.current = "Disconnected";
+      return;
+    } else if (!socket.connected) {
+      socket.connect();
+    }
     if (connectionState.current === "Connected") {
       resyncOrchestra();
-      return;
-    } else if (!socket) {
-      console.error("Socket is not connected!");
-      connectionState.current = "Disconnected";
       return;
     } else {
       setIsSyncing(true);
@@ -76,7 +83,9 @@ function App() {
       var player = new Tone.Player(Woodblock);
       player.connect(volume.current);
       Tone.getTransport().scheduleRepeat((time) => {
+        // setTimeOrigin(time - window.performance.now())
         player.start(time);
+        // console.log(Tone.immediate());
         Tone.getDraw().schedule(function () {
           setColorMode("white");
         }, time)
@@ -86,8 +95,18 @@ function App() {
       }, "4n", 0);
 
       const latencies = await synchronize(socket, serverOffset);
-      connectionState.current = "Connected";
 
+      const middleLatencies = latencies.sort().slice(1, -1);
+      const averageLatency = middleLatencies.reduce((a, b) => a + b, 0) / (middleLatencies.length);
+      if (averageLatency > 1000) {
+        console.error("Average latency is too high: ", averageLatency, "ms");
+        connectionState.current = "Disconnected";
+        setIsSyncing(false);
+        toast("Failed To Connect: Latency > 1000ms")
+        return;
+      }
+
+      connectionState.current = "Connected";
       socket.emit("sync-orchestra", latencies);
       setIsSyncing(false);
     };
@@ -118,6 +137,7 @@ function App() {
             <label for="volume" size={"sm"}>Volume</label>
             <input type="range" id="volume" min={0} max={1} step={.01} defaultValue={0.5} onChange={onVolumeChange} />
           </div>)}
+        <ToastContainer aria-label={undefined} />
       </div>
     </div>
   );

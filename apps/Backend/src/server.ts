@@ -43,3 +43,16 @@ server.listen(port, () => {
     console.log("ERROR: NO NETWORK CONNECTION FOUND")
   }
 });
+
+// setInterval(() => {
+//   const maxLatencies: number[] = [];
+//   orc.performers.forEach((p) => {
+//     maxLatencies.push(Math.max(...p.latencies));
+//   });
+//   const maxLatency = Math.max(...maxLatencies);
+
+//   if (maxLatency * 1.5 < orc.totalLatency) {
+//     orc.totalLatency = maxLatency * 1.5;
+//     console.log("New Orchestra Latency (Reduce): ", orc.totalLatency);
+//   }
+// }, 10000)

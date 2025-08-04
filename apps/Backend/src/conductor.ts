@@ -1,8 +1,7 @@
 import { Namespace, Socket } from "socket.io";
 import { Performer } from "./types.js";
-
 import { orc, ipAddress } from "./server.ts"
-import { arrayBuffer } from "stream/consumers";
+
 
 
 const conductorRoutes = (conductors: Namespace, performers: Namespace) => {
@@ -41,7 +40,7 @@ const conductorRoutes = (conductors: Namespace, performers: Namespace) => {
             conductor.status = "Connected"
             // orc.addPerformer(conductor);
             // conductors.emit("update-members", members);
-            socket.emit("server-change-tempo", orc.tempo);
+            socket.emit("server-update", orc.tempo, orc.isPlaying,);
             if(orc.backtrack) {
                 socket.emit('server-backtrack', orc.backtrack);
             }
@@ -50,9 +49,8 @@ const conductorRoutes = (conductors: Namespace, performers: Namespace) => {
 
         socket.on('conductor-start', (targetTime: number, position: string, cb: (newTargetTime: number) => void) => {
             console.log('conductor-start');
-            // console.log("Target Time: ", targetTime);
-            // console.log("Total Latency: ", orc.totalLatency);
-            const newTargetTime = targetTime + orc.totalLatency;
+            const newTargetTime = targetTime + 1000;
+            //const newTargetTime = targetTime + orc.totalLatency ;
             performers.emit('start', newTargetTime, position, orc.tempo);
             cb(newTargetTime);
             orc.isPlaying = true;
@@ -66,6 +64,7 @@ const conductorRoutes = (conductors: Namespace, performers: Namespace) => {
 
         socket.on('conductor-change-tempo', (targetTime: number, position: string, newTempo: number, cb: (newTargetTime: number) => void) => {
             console.log("Change Tempo: ", newTempo);
+            //const newTargetTime = targetTime + 1000;
             const newTargetTime = targetTime + orc.totalLatency;
             performers.emit('change-tempo', newTargetTime, position, newTempo);
             cb(newTargetTime);

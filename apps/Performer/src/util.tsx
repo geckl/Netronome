@@ -48,10 +48,8 @@ export function onewaySync(targetId: string, rtcConnection: RTCConnection, socke
       if (serverRoundtripLatency != undefined && clientRoundtripLatency != undefined && clientLatency != undefined) {
         var ratio: number;
         if (serverRoundtripLatency + clientRoundtripLatency === 0) {
-          console.log("X");
           ratio = 0;
         } else {
-          console.log("Y");
           ratio = clientLatency / (serverRoundtripLatency + clientRoundtripLatency);
         }
         const oneWayOffset: number = (serverRoundtripLatency - clientRoundtripLatency) * ratio / 2;
@@ -69,9 +67,9 @@ export function onewaySync(targetId: string, rtcConnection: RTCConnection, socke
     });
 
     rtcConnection.dc.addEventListener('message', event => {
-      console.log("calculate-latency-server response received");
       const message = JSON.parse(event.data).message;
       if (message.command === `calculate-latency-server-${targetId}`) {
+        console.log("calculate-latency-server response received");
         const senderId = message.sender;
         const stop2 = window.performance.now();
         serverRoundtripLatency = stop2 - start;
@@ -100,10 +98,18 @@ export function onewaySync(targetId: string, rtcConnection: RTCConnection, socke
 }
 
 export function togglePlayback(play: boolean, time: number = 0, position: string | undefined = undefined) {
-  console.log("Toggle Playback: ", play, time, position);
+  // console.log("Toggle Playback: ", play, time, position);
   Tone.getTransport().pause();
   if (play) {
-    Tone.getTransport().start(time > Tone.now() ? time : Tone.now(), position);
+    if (time > Tone.now()) {
+      console.log("Time: ", time, "Position: ", position);
+      Tone.getTransport().start(time, position);
+    } else {
+      const positionTime = Tone.Time(position).toMilliseconds();
+      const difference = Tone.now() - time;
+      const newPosition = Tone.Time(positionTime + difference).toBarsBeatsSixteenths();
+      Tone.getTransport().start(Tone.now(), newPosition);
+    }
     // setIsPlaying(true);
   } else {
     // setIsPlaying(false);

@@ -118,6 +118,7 @@ const performerRoutes = (performers: Namespace, conductors: Namespace) => {
                     performer.latencies.push(latency);
                     performer.latencies.shift();
                     console.log(performer.name, " LATENCY: ", performer.latencies);
+                    orc.updateLatencies(performer.latencies);
                 });
                 // conductors.emit("update-members", memebers);
             }

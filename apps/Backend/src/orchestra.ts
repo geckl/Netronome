@@ -14,19 +14,22 @@ class Orchestra {
     public addPerformer(p: Performer) {
         this.performers.push(p);
         const maxLatency = Math.max(...p.latencies);
-        if (maxLatency > this.totalLatency) {
+        if (maxLatency * 1.5 > this.totalLatency) {
             this.totalLatency = Math.ceil(maxLatency * 1.5);
-            console.log("New Latency: ", Math.ceil(maxLatency * 1.5))
+            console.log("New Orchestra Latency (New Performer): ", Math.ceil(maxLatency * 1.5))
         }
     }
 
     public removePerformer(p: Performer) {
         let performerIndex = this.performers.map(q => q.id).indexOf(p.id)
         this.performers.splice(performerIndex, 1);
-        const maxLatency = Math.max(...p.latencies);
-        if (maxLatency * 1.5 < this.totalLatency) {
+    }
+
+    public updateLatencies(latencies: number[]) {
+        const maxLatency = Math.max(...latencies);
+        if (maxLatency * 1.5 > this.totalLatency) {
             this.totalLatency = Math.ceil(maxLatency * 1.5);
-            console.log("New Latency: ", Math.ceil(maxLatency * 1.5))
+            console.log("New Orchestra Latency (Update Latencies): ", Math.ceil(maxLatency * 1.5))
         }
     }
 }

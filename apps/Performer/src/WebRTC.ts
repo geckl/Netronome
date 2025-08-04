@@ -1,6 +1,6 @@
 import { Socket } from "socket.io-client";
 import { Message, RTCConnection } from "./types";
-import { onewaySync, throwIfUndefined } from "./util";
+import { onewaySync, throwIfUndefined, timer } from "./util";
 import React from "react";
 
 export const rtcConnections = new Map<string, RTCConnection>();
@@ -22,9 +22,11 @@ export async function makeCall(invitation, socketInstance: Socket, oneWayOffsets
         let targetId = invitation.senderId;
         rtcConnections.set(targetId, connection);
 
-        dc.onopen = (event) => {
+        dc.onopen = async (event) => {
           console.log("Data Channel Open!");
           // sendMessage(connection, { command: "talk", value: "Hi you!" });
+          // Sleep to avoid sending message before peer's data channel is ready
+          await timer(500);
           onewaySync(targetId, connection, socketInstance).then((oneWayOffset) => {
             if (oneWayOffset !== undefined) {
               oneWayOffsets.current.push(oneWayOffset);
@@ -83,9 +85,11 @@ export async function makeCall(invitation, socketInstance: Socket, oneWayOffsets
         let targetId = offer.senderId;
         rtcConnections.set(targetId, connection);
 
-        dc.onopen = (event) => {
+        dc.onopen = async (event) => {
           console.log("Data Channel Open!");
           // sendMessage(connection, { command: "talk", value: "Hi you!" });
+          // Sleep to avoid sending message before peer's data channel is ready
+          await timer(1000);
           onewaySync(targetId, connection, socketInstance).then((oneWayOffset) => {
             if (oneWayOffset) {
               oneWayOffsets.current.push(oneWayOffset);

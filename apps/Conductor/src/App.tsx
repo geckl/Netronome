@@ -50,6 +50,9 @@ function App() {
   async function joinOrchestra() {
     if (connectionState === "Connected") {
       setConnectionState("Disconnected");
+      Tone.getTransport().stop();
+      Tone.getTransport().cancel();
+      Tone.getTransport().dispose();
     } else {
       console.log("Join Orchestra!");
       setConnectionState("Connecting")
@@ -66,9 +69,10 @@ function App() {
       const latencies = await synchronize(socket, serverOffset);
 
       // Add socketIO listeners needed for performance
-      socket.on("server-change-tempo", (tempo: number) => {
+      socket.on("server-update", (tempo: number, isPlaying: boolean) => {
         console.log("Server Tempo: ", tempo);
         setTempo([tempo]);
+        setIsPlaying(isPlaying);
       });
 
       socket.on("server-backtrack", (arrayBuffer: ArrayBuffer) => {
