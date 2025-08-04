@@ -1,5 +1,7 @@
 import { Socket } from "socket.io-client";
 import { DeviceType } from "./types";
+import * as Tone from "tone";
+import React from "react";
 
 // Returns a Promise that resolves after "ms" Milliseconds
 export const timer = ms => new Promise(res => setTimeout(res, ms));
@@ -103,3 +105,24 @@ export const toBase64 = file => new Promise((resolve, reject) => {
   reader.onload = () => resolve(reader.result);
   reader.onerror = reject;
 });
+
+export async function synchronize(socket: Socket, serverOffset: React.MutableRefObject<number>): Promise<number[]> {
+  let latencies: number[] = [];
+  let serverOffsets: number[] = [];
+  for (let i = 0; i < 5; i++) {
+    const start = Tone.immediate() * 1000;
+    socket.volatile.emit("calculate-latency", start, (latencyPlusOffset: number) => {
+      const latency = (Tone.immediate() * 1000) - start;
+      latencies.push(latency / 2);
+      serverOffsets.push((latencyPlusOffset - (latency / 2)));
+      console.log("Performer latency: ", latency);
+      console.log("Server Offset: ", (latencyPlusOffset - (latency / 2)));
+    });
+    await timer(500);
+  }
+  let middleOffsets = serverOffsets.sort().slice(1, -1);
+  let meanOffset = middleOffsets.reduce((a, b) => a + b) / (middleOffsets.length);
+  console.log("Mean: ", meanOffset);
+  serverOffset.current = meanOffset;
+  return latencies;
+}

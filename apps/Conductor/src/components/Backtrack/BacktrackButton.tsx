@@ -1,12 +1,39 @@
 import { React, useEffect } from 'react';
 import { CloseButton, FileUpload, Input, InputGroup, useFileUpload, VStack } from "@chakra-ui/react"
+import { Socket } from 'socket.io-client';
+import { setBacktrack } from './BacktrackPlayer';
+import { timer } from '../../util';
 
-// export const BacktrackButton = ({ backtrack, setBacktrack, socket }: { backtrack: MutableRefObject<Tone.Player>, setBacktrack: (p: Tone.Player) => void , socket: Socket | null }) => {
-export const BacktrackButton = ({ setBacktrack, readBacktrackFile }: { setBacktrack: (b: ArrayBuffer | null) => void; readBacktrackFile: (f: File | null) => void }) => {
+export const BacktrackButton = ({socket, togglePlayback, setIsBacktrack} : {socket: Socket, togglePlayback: (play: boolean, position?: string) => void, setIsBacktrack: (isBacktrack: boolean) => void}) => {
     const fileUpload = useFileUpload({
         maxFiles: 1,
         accept: ["audio/mpeg", "audio/wav"],
     });
+
+      function readBacktrackFile(audioFile: File | null) {
+        if (socket) {
+          if (audioFile === null) {
+            socket.emit("conductor-backtrack", null);
+            console.log("Backtrack cleared");
+          } else {
+            const stream = audioFile.stream()
+            const reader = stream.getReader();
+            const readChunk = () => {
+              reader.read().then(({ done, value }) => {
+                if (done) {
+                  console.log("Stream finished");
+                  return;
+                }
+                socket.emit("conductor-backtrack", value);
+                // Continue reading the next chunk
+                readChunk();
+              });
+            };
+            // Start reading the stream
+            readChunk();
+          }
+        }
+      }
 
     useEffect(() => {
         const file = fileUpload.acceptedFiles[0];
@@ -17,11 +44,11 @@ export const BacktrackButton = ({ setBacktrack, readBacktrackFile }: { setBacktr
             const fileReader = new FileReader();
             fileReader.onloadend = () => {
                 const arrayBuffer = fileReader.result as ArrayBuffer
-                setBacktrack(arrayBuffer);
+                setBacktrack(arrayBuffer, setIsBacktrack, socket, togglePlayback);
             }
-            fileReader.readAsArrayBuffer(backtrackBlob)
+            fileReader.readAsArrayBuffer(backtrackBlob);
         } else {
-            setBacktrack(null);
+            setBacktrack(null, setIsBacktrack, socket);
         }
     }, [fileUpload.acceptedFiles]);
 
