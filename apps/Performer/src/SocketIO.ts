@@ -80,35 +80,43 @@ export const initialSocketEvents = (
 
 export const connectedSocketEvents = (
   socket: Socket,
-  setIsPlaying: (isPlaying: boolean) => void,
   connectionState: React.MutableRefObject<string>,
   serverOffset: React.MutableRefObject<number>,
   oneWayOffsetAverage: number,
 ) => {
 
-  socket.on('start', (targetTime: number, position: string = "0:0:0", tempo: number | null = null) => {
+  socket.on('start', (targetTime: number, position: string | number = "0:0:0", tempo: number | null = null) => {
     if (tempo) {
       console.log("Tempo: ", tempo);
       Tone.getTransport().bpm.value = tempo;
     }
     // console.log(`start: ${targetTime} at position ${position}`);
     if (connectionState.current === "Connected") {
+      // console.log("Server Offset: ", serverOffset.current);
+      // console.log("One Way Offset: ", oneWayOffsetAverage);
       const time = convertTime("Client", targetTime, serverOffset.current + oneWayOffsetAverage);
+      if( typeof position === "number") {
+        console.log("Convert position to bars:beats:sixteenths");
+        position = Tone.Time(position, "s").toBarsBeatsSixteenths();
+      }
       togglePlayback(true, time, position);
     }
   });
 
   socket.on('stop', (data) => {
     console.log(`stop`);
-    setIsPlaying(false);
+    // setIsPlaying(false);
     togglePlayback(false);
   });
 
   socket.on('change-tempo', (targetTime: number, position: string = "0:0:0", newTempo: number) => {
     if (connectionState.current === "Connected") {
       console.log("change-tempo");
-      let time2 = convertTime("Client", targetTime, serverOffset.current + oneWayOffsetAverage);
-      Tone.getTransport().bpm.setValueAtTime(newTempo, time2);
+      console.log("Server Offset: ", serverOffset.current);
+      console.log("One Way Offset: ", oneWayOffsetAverage);
+      const time = convertTime("Client", targetTime, serverOffset.current + oneWayOffsetAverage);
+      const startTime = ((time - (window.performance.now() + 100) + (Tone.immediate() * 1000)) / 1000);
+      Tone.getTransport().bpm.setValueAtTime(newTempo, startTime);
     }
   });
 

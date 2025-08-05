@@ -33,10 +33,11 @@ export const initialSocketEvents = (
 
     socketInstance.on("status-update", (cb: (ip: boolean, t: number, p: number, tp: number) => void) => {
         console.log("status update!");
-        const targetTime = convertTime("Server", Tone.now(), serverOffset.current);
-        const position: number = Tone.getTransport().getSecondsAtTime(Tone.now());
+        const time = convertTime("Server", window.performance.now() + 100, serverOffset.current);
+        const position: number = Tone.getTransport().seconds;
+        // const targetPosition = ((position  + ((window.performance.now() + 100 + totalLatency) / 1000) - Tone.immediate()) * 1000);
         console.log("Tempo: ", tempo.current);
-        cb(Tone.getTransport().state === "started", targetTime, position, tempo.current);
+        cb(Tone.getTransport().state === "started", time, position, tempo.current);
     });
 
 }

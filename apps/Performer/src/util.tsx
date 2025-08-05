@@ -9,10 +9,10 @@ export const timer = ms => new Promise(res => setTimeout(res, ms));
 export const convertTime = (destination: DeviceType, time: number, serverOffset: number) => {
   if (destination === "Server") {
     // Client time in seconds
-    return (time * 1000) + serverOffset;
+    return (time) + serverOffset;
   } else if (destination === "Client") {
     //Server time in milliseconds
-    return (time - serverOffset) / 1000;
+    return (time - serverOffset);
   } else {
     throw Error(`Not a valid conversion (options are "server" or "client"`);
   }
@@ -40,7 +40,7 @@ export function onewaySync(targetId: string, rtcConnection: RTCConnection, socke
     let timer;
     let serverRoundtripLatency: number, clientRoundtripLatency: number, clientLatency: number;
 
-    const start = window.performance.now(); // use performance.now() for higher precision
+    const start = window.performance.now() + 100; // use performance.now() for higher precision
 
     function responseHandler() {
       console.log(serverRoundtripLatency, clientRoundtripLatency, clientLatency);
@@ -61,7 +61,7 @@ export function onewaySync(targetId: string, rtcConnection: RTCConnection, socke
 
     socket.on(`calculate-latency-client-${targetId}`, () => {
       console.log("calculate-latency-client response received");
-      const stop1 = window.performance.now();
+      const stop1 = window.performance.now() + 100;
       clientRoundtripLatency = stop1 - start;
       responseHandler();
     });
@@ -71,7 +71,7 @@ export function onewaySync(targetId: string, rtcConnection: RTCConnection, socke
       if (message.command === `calculate-latency-server-${targetId}`) {
         console.log("calculate-latency-server response received");
         const senderId = message.sender;
-        const stop2 = window.performance.now();
+        const stop2 = window.performance.now() + 100;
         serverRoundtripLatency = stop2 - start;
         responseHandler();
 
@@ -81,7 +81,7 @@ export function onewaySync(targetId: string, rtcConnection: RTCConnection, socke
     setTimeout(() => {
       sendMessage(rtcConnection, { command: "calculate-latency-client-1", senderId: socket.id });
       socket.emit("calculate-latency-server-1", targetId, () => {
-        const stop0 = window.performance.now();
+        const stop0 = window.performance.now() + 100;
         clientLatency = stop0 - start;
         responseHandler();
       });
@@ -98,17 +98,23 @@ export function onewaySync(targetId: string, rtcConnection: RTCConnection, socke
 }
 
 export function togglePlayback(play: boolean, time: number = 0, position: string | undefined = undefined) {
-  // console.log("Toggle Playback: ", play, time, position);
+  console.log("Toggle Playback: ", play, time, position);
+  // console.log("Start Time (Window.Performance): ", time);
+  // console.log("Current Time (Window.Performance): ", window.performance.now() + 100);
   Tone.getTransport().pause();
   if (play) {
-    if (time > Tone.now()) {
-      console.log("Time: ", time, "Position: ", position);
-      Tone.getTransport().start(time, position);
+    if (time > (window.performance.now())) {
+      // console.log("Start Time (Window.Performance): ", time);
+      const startTime = ((time - (window.performance.now()) + (Tone.immediate() * 1000)) / 1000);
+      // console.log("Start Time (ToneJS): ", startTime);
+      Tone.getTransport().start(startTime, position);
     } else {
-      const positionTime = Tone.Time(position).toMilliseconds();
-      const difference = Tone.now() - time;
-      const newPosition = Tone.Time(positionTime + difference).toBarsBeatsSixteenths();
-      Tone.getTransport().start(Tone.now(), newPosition);
+      console.log("Start Command Arrived Too Late!", )
+      // const positionTime = Tone.Time(position).toMilliseconds();
+      // console.log("StartTime: ", time, "CurrentTime: ", Tone.immediate());
+      // const difference = Tone.now() - time;
+      // const newPosition = Tone.Time(positionTime + difference).toBarsBeatsSixteenths();
+      // Tone.getTransport().start(Tone.now(), newPosition);
     }
     // setIsPlaying(true);
   } else {
@@ -120,18 +126,30 @@ export async function synchronize(socket: Socket, serverOffset: React.MutableRef
   let latencies: number[] = [];
   let serverOffsets: number[] = [];
   for (let i = 0; i < 5; i++) {
-    const start = Tone.immediate() * 1000;
+    const start = window.performance.now() + 100;
     // volatile, so the packet will be discarded if the socket is not connected
     socket.volatile.emit("calculate-latency", start, (latencyPlusOffset: number) => {
-      const latency = (Tone.immediate() * 1000) - start;
+      const latency = (window.performance.now() + 100) - start;
       console.log("Latency: ", latency);
+      console.log("Latency Plus Offset: ", latencyPlusOffset);
       latencies.push(latency / 2);
-      serverOffsets.push((latencyPlusOffset - (latency / 2)));
+      serverOffsets.push((Math.round(latencyPlusOffset - (latency / 2))));
     });
     await timer(500);
   }
   let middleOffsets = serverOffsets.sort().slice(1, -1);
-  let meanOffset = middleOffsets.reduce((a, b) => a + b) / (middleOffsets.length);
+  let meanOffset = Math.round(middleOffsets.reduce((a, b) => a + b) / (middleOffsets.length));
+  let averageLatency = latencies.reduce((a, b) => a + b) / latencies.length;
+  if (averageLatency > 1000) {
+    console.error("Average latency is too high: ", averageLatency, "ms");
+    throw new Error("Average latency is too high. Please check your network connection.");
+  }
   serverOffset.current = meanOffset;
   return latencies;
+}
+
+export function resetTransport() {
+  Tone.getTransport().stop();
+  Tone.getTransport().cancel();
+  Tone.getTransport().dispose();
 }

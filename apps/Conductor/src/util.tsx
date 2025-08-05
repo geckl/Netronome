@@ -89,11 +89,11 @@ export const playAudio = (audioData: any) => {
 
 export const convertTime = (destination: DeviceType, time: number, serverOffset: number) => {
   if (destination === "Server") {
-    // Client time in seconds
-    return (time * 1000) + serverOffset;
+    // Client time in milliseconds
+    return (time) + serverOffset;
   } else if (destination === "Client") {
     //Server time in milliseconds
-    return (time - serverOffset) / 1000;
+    return (time - serverOffset);
   } else {
     throw Error(`Not a valid conversion (options are "server" or "client"`);
   }
@@ -110,9 +110,9 @@ export async function synchronize(socket: Socket, serverOffset: React.MutableRef
   let latencies: number[] = [];
   let serverOffsets: number[] = [];
   for (let i = 0; i < 5; i++) {
-    const start = Tone.immediate() * 1000;
+    const start = window.performance.now() + 100;
     socket.volatile.emit("calculate-latency", start, (latencyPlusOffset: number) => {
-      const latency = (Tone.immediate() * 1000) - start;
+      const latency = (window.performance.now() + 100) - start;
       latencies.push(latency / 2);
       serverOffsets.push((latencyPlusOffset - (latency / 2)));
       console.log("Performer latency: ", latency);
@@ -121,8 +121,14 @@ export async function synchronize(socket: Socket, serverOffset: React.MutableRef
     await timer(500);
   }
   let middleOffsets = serverOffsets.sort().slice(1, -1);
-  let meanOffset = middleOffsets.reduce((a, b) => a + b) / (middleOffsets.length);
+  let meanOffset = Math.round(middleOffsets.reduce((a, b) => a + b) / (middleOffsets.length));
   console.log("Mean: ", meanOffset);
   serverOffset.current = meanOffset;
   return latencies;
+}
+
+export function resetTransport() {
+  Tone.getTransport().stop();
+  Tone.getTransport().cancel();
+  Tone.getTransport().dispose();
 }

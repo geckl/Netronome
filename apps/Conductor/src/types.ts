@@ -1,5 +1,6 @@
 import { Socket } from "socket.io-client";
 import { UUID } from "crypto";
+import { PlaybackState } from "tone";
 
 
 export type Connection = {
@@ -22,6 +23,8 @@ export const JoinButton = {
    'Connected': "Disconnect"
 };
 
-export type DeviceType = "Client" | "Server"
+export type DeviceType = "Client" | "Server";
 
 export type TempoMode = "Static" | "Fluid";
+
+export type NetronomePlaybackState = PlaybackState | "loading";
