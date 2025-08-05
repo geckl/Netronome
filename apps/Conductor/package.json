@@ -46,5 +46,8 @@
     ]
   },
   "proxy": "http://localhost:3000/conductor",
-  "homepage": "/Conductor"
+  "homepage": "/Conductor",
+  "devDependencies": {
+    "@types/react": "^19.1.9"
+  }
 }

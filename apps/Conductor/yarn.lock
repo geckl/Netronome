@@ -2368,6 +2368,13 @@
   resolved "https://registry.yarnpkg.com/@types/range-parser/-/range-parser-1.2.7.tgz#50ae4353eaaddc04044279812f52c8c65857dbcb"
   integrity sha512-hKormJbkJqzQGhziax5PItDUTMAM9uE2XXQmM37dyd4hVM+5aVl7oVxMVUiVQn2oCQFN/LKCZdvSM0pFRqbSmQ==
 
+"@types/react@^19.1.9":
+  version "19.1.9"
+  resolved "https://registry.yarnpkg.com/@types/react/-/react-19.1.9.tgz#f42b24f35474566a39b5c3a98e4d0c425b79a849"
+  integrity sha512-WmdoynAX8Stew/36uTSVMcLJJ1KRh6L3IZRx1PZ7qJtBqT3dYTgyDTx8H1qoRghErydW7xw9mSJ3wS//tCRpFA==
+  dependencies:
+    csstype "^3.0.2"
+
 "@types/resolve@1.17.1":
   version "1.17.1"
   resolved "https://registry.yarnpkg.com/@types/resolve/-/resolve-1.17.1.tgz#3afd6ad8967c77e4376c598a82ddd58f46ec45d6"
