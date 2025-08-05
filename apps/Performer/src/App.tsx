@@ -92,20 +92,42 @@ function App() {
       // Add socketIO listeners needed for performance
       connectedSocketEvents(socket, connectionState, serverOffset, oneWayOffsetAverage,);
 
-      //create a synth and connect it to the main output (your speakers)
-      var player = new Tone.Player(Woodblock);
-      player.connect(volume.current);
-      Tone.getTransport().scheduleRepeat((time) => {
-        // setTimeOrigin(time - window.performance.now() + 100)
-        player.start(time);
-        // console.log(Tone.immediate());
-        Tone.getDraw().schedule(function () {
-          setColorMode("white");
-        }, time)
-        Tone.getDraw().schedule(function () {
-          setColorMode("#61DAFB");
-        }, time + .1)
-      }, "4n", 0);
+      //create a synth and connect it to the main output
+            var synth = new Tone.PolySynth({
+              // "volume": -10,
+              "envelope": {
+                "attack": 0.5,
+                "decay": 0,
+                "sustain": 0.3,
+                "release": 0,
+                }
+            })
+            synth.set({
+              "oscillator": {
+                "type": "sine"
+              }
+            });
+            synth.connect(volume.current);
+      
+            var pattern = new Tone.Pattern(function (time, note) {
+              synth.triggerAttackRelease(note, "4n");
+            }, ["C4", "D4", "E4", "A3"], "upDown");
+      
+            pattern.loop = true;
+            pattern.interval = "8n";
+            pattern.start(0);
+      
+            //var player = new Tone.Player(Woodblock);
+            //player.connect(volume.current);
+            Tone.getTransport().scheduleRepeat((time) => {
+              // player.start(time);
+              Tone.getDraw().schedule(function () {
+                setColorMode("white");
+              }, time)
+              Tone.getDraw().schedule(function () {
+                setColorMode("#61DAFB");
+              }, time + .1)
+            }, "4n", 0);
 
       try {
         const latencies = await synchronize(socket, serverOffset);
