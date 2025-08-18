@@ -1,4 +1,3 @@
-import { UUID } from "crypto";
 import { Socket } from "socket.io";
 
 export type Connection = {
@@ -7,7 +6,7 @@ export type Connection = {
 }
 
 export type Performer = {
-    id: UUID;
+    id: string;
     name: string;
     status: ConnectionStatus;
     latencies: number[]
