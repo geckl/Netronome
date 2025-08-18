@@ -30,13 +30,7 @@ function App() {
     // Add socketIO listeners needed for connection
     initialSocketEvents(socketInstance, setSocket, connectionState, oneWayOffsets, setOneWayOffsetAverage);
 
-    setInterval(() => {
-      console.log(Tone.immediate());
-      console.log(window.performance.now() + 100);
-    }, 1000);
-
     return () => {
-      console.log("Unmount!");
       if (socketInstance) {
         socketInstance.disconnect();
         socketInstance.removeAllListeners();
@@ -65,7 +59,6 @@ function App() {
   async function joinOrchestra() {
     if (!socket) {
       console.error("Socket is not connected!");
-      console.log(socket);
       connectionState.current = "Disconnected";
       resetTransport();
       return;
@@ -96,9 +89,7 @@ function App() {
       var player = new Tone.Player(Woodblock);
       player.connect(volume.current);
       Tone.getTransport().scheduleRepeat((time) => {
-        // setTimeOrigin(time - window.performance.now() + 100)
         player.start(time);
-        // console.log(Tone.immediate());
         Tone.getDraw().schedule(function () {
           setColorMode("white");
         }, time)

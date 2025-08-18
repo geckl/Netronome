@@ -38,10 +38,6 @@ function App() {
   const [state, setState] = useState<NetronomePlaybackState>("stopped");
 
   useEffect(() => {
-    console.log("State: ", state);
-  }, [state]);
-
-  useEffect(() => {
     const socketInstance = io('/conductor', {
       transports: ['websocket'],
       upgrade: false
@@ -63,7 +59,6 @@ function App() {
   async function joinOrchestra() {
     if (!socket) {
       console.error("Socket is not connected!");
-      console.log(socket);
       setConnectionState("Disconnected");
       return;
     } else if (!socket.connected) {
@@ -100,14 +95,12 @@ function App() {
 
       // Add socketIO listeners needed for performance
       socket.on("server-update", (tempo: number, isPlaying: boolean) => {
-        console.log("Server Tempo: ", tempo);
         setTempo(tempo);
-        // setIsPlaying(isPlaying);
       });
 
       socket.on("server-backtrack", (arrayBuffer: ArrayBuffer) => {
         setBacktrack(arrayBuffer, socket);
-        console.log("Server Backtrack: ", arrayBuffer);
+        // console.log("Server Backtrack: ", arrayBuffer);
       });
       socket.emit("conductor-sync-orchestra", latencies);
 
@@ -135,11 +128,8 @@ function App() {
         setState("paused");
         const targetTime = convertTime("Server", window.performance.now() + 100, serverOffset.current);
         socket.emit('conductor-start', targetTime, position, (newTargetTime: number) => {
-          // console.log(targetTime, "->", newTargetTime - serverOffset.current);
           const time = convertTime("Client", newTargetTime, serverOffset.current);
           const startTime = ((time - (window.performance.now()) + (Tone.immediate() * 1000)) / 1000);
-          console.log("Start Time (ToneJS): ", startTime);
-          //setIsPlaying(true);
           Tone.getTransport().start(startTime, position);
           return true;
         });
@@ -148,7 +138,6 @@ function App() {
         const tempPosition = Tone.getTransport().position;
         Tone.getTransport().stop();
         Tone.getTransport().position = tempPosition; // Reset position to the last known position
-        // setIsPlaying(false);
         return false;
       }
     }
@@ -159,10 +148,8 @@ function App() {
     tempo.current = newTempo;
     if (socket) {
       const targetTime = convertTime("Server", window.performance.now() + 100, serverOffset.current)
-      console.log("Target Time: ", targetTime);
       const position = "0:0:0";
       socket.emit("conductor-change-tempo", targetTime, position, newTempo, (newTargetTime: number) => {
-        console.log("New Target Time: ", newTargetTime);
         let time = convertTime("Client", newTargetTime, serverOffset.current);
         const startTime = ((time - (window.performance.now() + 100) + (Tone.immediate() * 1000)) / 1000);
         Tone.getTransport().bpm.setValueAtTime(newTempo, startTime);
@@ -190,7 +177,7 @@ function App() {
           eventEmitter: null,
 
           init: function (eventEmitter) {
-            console.log("init backtrack!");
+            console.log("new backtrack!");
             this.eventEmitter = eventEmitter;
             Tone.getTransport().position = "0:0:0";
             updatePlayhead = Tone.getTransport().scheduleRepeat(() => {
@@ -204,7 +191,7 @@ function App() {
           },
 
           destroy: function () {
-            console.log("destroy backtrack!");
+            console.log("remove backtrack!");
             backtrack?.dispose();
             if (updatePlayhead) {
               Tone.getTransport().clear(updatePlayhead);
@@ -218,27 +205,20 @@ function App() {
           },
 
           setSource: function (opts) {
-            console.log("setSource backtrack!");
             if (this.isPlaying()) {
               this.pause();
             }
-
             // Update the Tone.js Player object with the new AudioBuffer
             this.externalPlayer.buffer.set(opts.webAudio.audioBuffer);
             return Promise.resolve();
           },
 
           play: async function () {
-            console.log("play backtrack!");
-            // togglePlayback(true)
             this.eventEmitter.emit('player.playing', this.getCurrentTime());
             return Promise.resolve();
           },
 
           pause: function () {
-            console.log("pause backtrack!");
-            // Tone.getTransport().pause();
-
             this.eventEmitter.emit('player.pause', this.getCurrentTime());
           },
 
@@ -248,11 +228,7 @@ function App() {
 
           seek: async function (time) {
             // console.log("seek backtrack! ", time);
-            
             if (Tone.getTransport().state !== "paused") {
-              // Tone.getTransport().pause();
-              // const position = Tone.Time(time, "s").toBarsBeatsSixteenths();
-              // Tone.getTransport().position = position;
               this.eventEmitter.emit('player.seeked', time);
               this.eventEmitter.emit('player.timeupdate', time);
             } else{
@@ -302,7 +278,6 @@ function App() {
           // peaksInstance.views.getView('overview')?.enableSeek(false);
 
           peaksInstance.on('overview.click', async function (event) {
-            console.log("click: ", Tone.getTransport().state);
             if (Tone.getTransport().state === "stopped") {
               Tone.getTransport().seconds = event.time;
             } else if (Tone.getTransport().state === "paused") {

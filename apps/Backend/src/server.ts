@@ -36,23 +36,9 @@ conductorHandlers(conductors, performers);
 performerHandlers(performers, conductors);
 
 server.listen(port, () => {
-  console.log('listening on *:3000');
   if (ipAddress) {
     console.log("Connect to Metronome here: http://" + ipAddress + ":3000");
   } else {
     console.log("ERROR: NO NETWORK CONNECTION FOUND")
   }
 });
-
-// setInterval(() => {
-//   const maxLatencies: number[] = [];
-//   orc.performers.forEach((p) => {
-//     maxLatencies.push(Math.max(...p.latencies));
-//   });
-//   const maxLatency = Math.max(...maxLatencies);
-
-//   if (maxLatency * 1.5 < orc.totalLatency) {
-//     orc.totalLatency = maxLatency * 1.5;
-//     console.log("New Orchestra Latency (Reduce): ", orc.totalLatency);
-//   }
-// }, 10000)

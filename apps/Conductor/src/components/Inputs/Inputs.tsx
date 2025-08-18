@@ -3,9 +3,6 @@ import React from "react";
 function InputDropdown(props) {
 
     // const [audioInputs, setAudioinputs] = useState(props.inputs);
-
-    //console.log(props.inputs);
-
     function changeInput(e) {
         props.setSelectedAudioId(e.target.value)
     }

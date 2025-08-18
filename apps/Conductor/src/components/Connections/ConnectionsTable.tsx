@@ -9,14 +9,11 @@ const ConnectionsTable = ({ members }: { members: Performer[] }) => {
     statusMap.set("Connecting", "yellow");
     statusMap.set("Disconnected", "red");
 
-    console.log(members);
-
     const tableBody = members.map((member) => {
         let meanLatency: number | null = null;
         if (member.latencies && member.latencies.length) {
             meanLatency = member.latencies.reduce((a, b) => a + b) / member?.latencies.length
         }
-        // console.log("Mean Latency: ", meanLatency);
         return (
             <Table.Row key={member.id}>
                 <Table.Cell textAlign="start">{member.name}</Table.Cell>

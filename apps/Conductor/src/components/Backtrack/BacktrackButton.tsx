@@ -12,14 +12,13 @@ export const BacktrackButton = ({ setBacktrack, socket }: { setBacktrack: (ab: A
     if (socket) {
       if (audioFile === null) {
         socket.emit("conductor-backtrack", null);
-        console.log("Backtrack cleared");
+        console.log("Backtrack cleared!");
       } else {
         const stream = audioFile.stream()
         const reader = stream.getReader();
         const readChunk = () => {
           reader.read().then(({ done, value }) => {
             if (done) {
-              console.log("Stream finished");
               return;
             }
             socket.emit("conductor-backtrack", value);
@@ -36,7 +35,7 @@ export const BacktrackButton = ({ setBacktrack, socket }: { setBacktrack: (ab: A
   useEffect(() => {
     const file = fileUpload.acceptedFiles[0];
     if (file) {
-      console.log("New Backing Track Selected: ", file);
+      console.log("New Backtrack Selected: ", file);
       readBacktrackFile(file);
       const backtrackBlob = file as Blob;
       const fileReader = new FileReader();

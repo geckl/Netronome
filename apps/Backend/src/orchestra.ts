@@ -16,7 +16,7 @@ class Orchestra {
         const maxLatency = Math.max(...p.latencies);
         if (maxLatency * 1.5 > this.totalLatency) {
             this.totalLatency = Math.ceil(maxLatency * 1.5);
-            console.log("New Orchestra Latency (New Performer): ", Math.ceil(maxLatency * 1.5))
+            console.log("New Orchestra Latency: ", Math.ceil(maxLatency * 1.5))
         }
     }
 
@@ -29,7 +29,7 @@ class Orchestra {
         const maxLatency = Math.max(...latencies);
         if (maxLatency * 1.5 > this.totalLatency) {
             this.totalLatency = Math.ceil(maxLatency * 1.5);
-            console.log("New Orchestra Latency (Update Latencies): ", Math.ceil(maxLatency * 1.5))
+            console.log("New Orchestra Latency: ", Math.ceil(maxLatency * 1.5))
         }
     }
 }

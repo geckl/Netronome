@@ -63,7 +63,7 @@ const conductorRoutes = (conductors: Namespace, performers: Namespace) => {
         });
 
         socket.on('conductor-change-tempo', (targetTime: number, position: string, newTempo: number, cb: (newTargetTime: number) => void) => {
-            console.log("Change Tempo: ", newTempo);
+            console.log("change-tempo: ", newTempo);
             //const newTargetTime = targetTime + 1000;
             const newTargetTime = targetTime + orc.totalLatency;
             performers.emit('change-tempo', newTargetTime, position, newTempo);
@@ -72,13 +72,13 @@ const conductorRoutes = (conductors: Namespace, performers: Namespace) => {
         })
 
         socket.on('conductor-backtrack', (backtrack: ArrayBuffer | null) => {
+            console.log("emitting backtrack data");
             var appendBuffer = function (buffer1: ArrayBuffer, buffer2: ArrayBuffer) {
                 var tmp = new Uint8Array(buffer1.byteLength + buffer2.byteLength);
                 tmp.set(new Uint8Array(buffer1), 0);
                 tmp.set(new Uint8Array(buffer2), buffer1.byteLength);
                 return tmp.buffer;
               };
-            console.log("New Backtrack: ", backtrack);
             performers.emit('backtrack', backtrack);
             if(backtrack === null)
             {
