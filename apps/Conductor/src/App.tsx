@@ -144,7 +144,7 @@ function App() {
     return false;
   }
 
-  function setTempo(newTempo) {
+  function setTempo(newTempo: number) {
     tempo.current = newTempo;
     if (socket) {
       const targetTime = convertTime("Server", window.performance.now() + 100, serverOffset.current)
