@@ -13,7 +13,7 @@ const configuration = {
   iceCandidatePoolSize: 10,
 };
 
-export async function makeCall(invitation, socketInstance: Socket, oneWayOffsets: RefObject<number[]>, setOneWayOffsetAverage: (average: number) => void) {
+export async function makeCall(invitation, socketInstance: Socket, oneWayOffsets: RefObject<number[]>, oneWayOffsetAverage: RefObject<number>) {
       // console.log("makeCall");
       try {
         let pc = new RTCPeerConnection(configuration);
@@ -31,8 +31,8 @@ export async function makeCall(invitation, socketInstance: Socket, oneWayOffsets
           onewaySync(targetId, connection, socketInstance).then((oneWayOffset) => {
             if (oneWayOffset !== undefined) {
               oneWayOffsets.current.push(oneWayOffset);
-              setOneWayOffsetAverage(oneWayOffsets.current.reduce((a, b) => a + b) / oneWayOffsets.current.length);
-              // console.log("One Way Offsets: ", oneWayOffsets.current);
+              oneWayOffsetAverage.current = oneWayOffsets.current.reduce((a, b) => a + b) / oneWayOffsets.current.length;
+              console.log("One Way Offsets: ", oneWayOffsets.current, "Average: ", oneWayOffsetAverage.current);
             }
             // socketInstance.emit("rtc-message", { type: "bye", targetId: targetId, senderId: socketInstance.id });
           }).catch((error) => {
@@ -77,7 +77,7 @@ export async function makeCall(invitation, socketInstance: Socket, oneWayOffsets
       }
     }
 
-    export async function handleOffer(offer, socketInstance: Socket, oneWayOffsets: RefObject<number[]>, setOneWayOffsetAverage: (average: number) => void) {
+    export async function handleOffer(offer, socketInstance: Socket, oneWayOffsets: RefObject<number[]>, oneWayOffsetAverage: RefObject<number>) {
       // console.log("handle offer: ", offer);
       try {
         let pc = new RTCPeerConnection(configuration);
@@ -94,8 +94,8 @@ export async function makeCall(invitation, socketInstance: Socket, oneWayOffsets
           onewaySync(targetId, connection, socketInstance).then((oneWayOffset) => {
             if (oneWayOffset) {
               oneWayOffsets.current.push(oneWayOffset);
-              setOneWayOffsetAverage(oneWayOffsets.current.reduce((a, b) => a + b) / oneWayOffsets.current.length);
-              // console.log("One Way Offsets: ", oneWayOffsets.current);
+              oneWayOffsetAverage.current = (oneWayOffsets.current.reduce((a, b) => a + b) / oneWayOffsets.current.length);
+              console.log("One Way Offsets: ", oneWayOffsets.current);
             }
             // socketInstance.emit("rtc-message", { type: "bye", targetId: targetId, senderId: socketInstance.id });
           }).catch((error) => {

@@ -5,6 +5,8 @@ import { io, orc } from "./server.ts"
 const members: Performer[] = [];
 let membersCounter = 0;
 
+const timer = ms => new Promise(res => setTimeout(res, ms));
+
 const performerRoutes = (performers: Namespace, conductors: Namespace) => {
 
     // Performer Socket
@@ -13,10 +15,16 @@ const performerRoutes = (performers: Namespace, conductors: Namespace) => {
         members.push(performer);
         membersCounter++;
         console.log("performer connected: ", performer);
+
+        const oneWayDelay1 = Math.random() * 500; // Simulated one-way delay for testing
+        const oneWayDelay2 = Math.random() * 500;
+
+        console.log(`Simulated one-way delay for performer ${performer.id}: ${oneWayDelay1} ms`);
+
         if (orc.conductor) {
             conductors.sockets.get(orc.conductor.id)?.emit("update-members", members);
         }
-        // socket.emit("starttime", baselineDate);
+
 
         socket.on("request-join", () => {
             performer.status = "Connecting";
@@ -48,7 +56,7 @@ const performerRoutes = (performers: Namespace, conductors: Namespace) => {
             if (performer.status !== "Connected") {
                 performer.status = "Connected"
                 orc.addPerformer(performer);
-                if(orc.backtrack) {
+                if (orc.backtrack) {
                     socket.emit('backtrack', orc.backtrack);
                 }
             }
@@ -86,7 +94,7 @@ const performerRoutes = (performers: Namespace, conductors: Namespace) => {
 
         socket.on("rtc-message", (message) => {
             // console.log("rtc-message: ", message);
-            if(message.targetId) {
+            if (message.targetId) {
                 socket.to(message.targetId).emit("rtc-message", message);
             } else {
                 socket.broadcast.emit("rtc-message", message);
@@ -104,19 +112,37 @@ const performerRoutes = (performers: Namespace, conductors: Namespace) => {
             console.log("user disconnected: ", performer.id);
         });
 
-        setInterval(() => {
-            if (orc.isPlaying) {
-                const start = performance.now();
-                socket.emit("ping", () => {
-                    const latency = (performance.now() - start) / 2;
-                    performer.latencies.push(latency);
-                    performer.latencies.shift();
-                    orc.updateLatencies(performer.latencies);
-                });
-                // conductors.emit("update-members", memebers);
-            }
-        }, 10000);
-    });
+        socket.use((event, next) => {
+            setTimeout(() => {
+                next();
+            }, oneWayDelay1);
+        });
+        socket.emit("asymmetric-latency", oneWayDelay1, oneWayDelay2);
+
+        const originalEmit = socket.emit;
+
+        socket.emit = (...args) => {
+            // Add a 1000ms (1 second) delay
+            setTimeout(() => {
+                originalEmit.apply(socket, args);
+            }, oneWayDelay2)
+            return true;
+        };
+
+
+            setInterval(() => {
+                if (orc.isPlaying) {
+                    const start = performance.now();
+                    socket.emit("ping", () => {
+                        const latency = (performance.now() - start) / 2;
+                        performer.latencies.push(latency);
+                        performer.latencies.shift();
+                        orc.updateLatencies(performer.latencies);
+                    });
+                    // conductors.emit("update-members", memebers);
+                }
+            }, 10000);
+        });
 }
 
 export default performerRoutes;

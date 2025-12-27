@@ -21,14 +21,14 @@ function App() {
   // const backtrack = useRef<Tone.Player>(null);
   const [colorMode, setColorMode] = useState<string>("#61DAFB");
   const oneWayOffsets = useRef<number[]>([]);
-  const [oneWayOffsetAverage, setOneWayOffsetAverage] = useState<number>(0);
+  const oneWayOffsetAverage = useRef<number>(0);
   // const [timeOrigin, setTimeOrigin] = useState(window.performance.timeOrigin);
 
   useEffect(() => {
     const socketInstance = io();
 
     // Add socketIO listeners needed for connection
-    initialSocketEvents(socketInstance, setSocket, connectionState, oneWayOffsets, setOneWayOffsetAverage);
+    initialSocketEvents(socketInstance, setSocket, connectionState, oneWayOffsets, oneWayOffsetAverage);
 
     return () => {
       if (socketInstance) {

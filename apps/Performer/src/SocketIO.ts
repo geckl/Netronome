@@ -13,7 +13,7 @@ export const initialSocketEvents = (
   setSocket: (socket: Socket | null) => void,
   connectionState: RefObject<string>,
   oneWayOffsets: RefObject<number[]>,
-  setOneWayOffsetAverage: (average: number) => void
+  oneWayOffsetAverage: RefObject<number>
 ) => {
   socketInstance.on('connect', () => {
     console.log('Connected to server');
@@ -21,10 +21,9 @@ export const initialSocketEvents = (
     socketInstance.emit("rtc-invite", { senderId: socketInstance.id });
   });
 
-  // socketInstance.on("starttime", (data => {
-  //   console.log("Backend Start Time: " + data);
-  // }
-  // ));
+  socketInstance.on("asymmetric-latency", (oneWayDelay1, oneWayDelay2) => {
+    console.log("Asymmetric Latency: " + oneWayDelay1 + " ms, " + oneWayDelay2  + " ms");
+  });
 
   socketInstance.on("ping", (callback) => {
     callback();
@@ -53,7 +52,7 @@ export const initialSocketEvents = (
     // console.log("rtc-message: ", e);
     switch (e.type) {
       case "offer":
-        handleOffer(e, socketInstance, oneWayOffsets, setOneWayOffsetAverage);
+        handleOffer(e, socketInstance, oneWayOffsets, oneWayOffsetAverage);
         break;
       case "answer":
         handleAnswer(e);
@@ -72,7 +71,7 @@ export const initialSocketEvents = (
 
   socketInstance.on("rtc-invite", (e) => {
     // console.log("rtc-invite: ", e);
-    makeCall(e, socketInstance, oneWayOffsets, setOneWayOffsetAverage);
+    makeCall(e, socketInstance, oneWayOffsets, oneWayOffsetAverage);
   });
 }
 
@@ -80,7 +79,7 @@ export const connectedSocketEvents = (
   socket: Socket,
   connectionState: RefObject<string>,
   serverOffset: RefObject<number>,
-  oneWayOffsetAverage: number,
+  oneWayOffsetAverage: RefObject<number>,
 ) => {
 
   socket.on('start', (targetTime: number, position: string | number = "0:0:0", tempo: number | null = null) => {
@@ -88,7 +87,8 @@ export const connectedSocketEvents = (
       Tone.getTransport().bpm.value = tempo;
     }
     if (connectionState.current === "Connected") {
-      const time = convertTime("Client", targetTime, serverOffset.current + oneWayOffsetAverage);
+      // console.log("One Way Offset Average: ", oneWayOffsetAverage.current);
+      const time = convertTime("Client", targetTime, serverOffset.current - oneWayOffsetAverage.current);
       if( typeof position === "number") {
         position = Tone.Time(position, "s").toBarsBeatsSixteenths();
       }
@@ -103,7 +103,8 @@ export const connectedSocketEvents = (
 
   socket.on('change-tempo', (targetTime: number, position: string = "0:0:0", newTempo: number) => {
     if (connectionState.current === "Connected") {
-      const time = convertTime("Client", targetTime, serverOffset.current + oneWayOffsetAverage);
+      // console.log("One Way Offset Average: ", oneWayOffsetAverage.current);
+      const time = convertTime("Client", targetTime, serverOffset.current - oneWayOffsetAverage.current);
       const startTime = ((time - (window.performance.now() + 100) + (Tone.immediate() * 1000)) / 1000);
       Tone.getTransport().bpm.setValueAtTime(newTempo, startTime);
     }

@@ -44,13 +44,16 @@ export function onewaySync(targetId: string, rtcConnection: RTCConnection, socke
     function responseHandler() {
       // resolve promise with the value we got
       if (serverRoundtripLatency != undefined && clientRoundtripLatency != undefined && clientLatency != undefined) {
+        console.log("Server Roundtrip Latency: ", serverRoundtripLatency);
+        console.log("Client Roundtrip Latency: ", clientRoundtripLatency);
+        console.log("Two Way Latency: ", clientLatency);
         var ratio: number;
         if (serverRoundtripLatency + clientRoundtripLatency === 0) {
           ratio = 0;
         } else {
           ratio = clientLatency / (serverRoundtripLatency + clientRoundtripLatency);
         }
-        const oneWayOffset: number = (serverRoundtripLatency - clientRoundtripLatency) * ratio / 2;
+        const oneWayOffset: number = ((serverRoundtripLatency - clientRoundtripLatency) * ratio) / 2;
         resolve(oneWayOffset);
         clearTimeout(timer);
       }
