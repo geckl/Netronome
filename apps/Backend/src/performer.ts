@@ -14,7 +14,7 @@ const performerRoutes = (performers: Namespace, conductors: Namespace) => {
         membersCounter++;
         console.log("performer connected: ", performer);
 
-        const oneWayDelay1 = Math.random() * 500; // Simulated one-way delay for testing
+        const oneWayDelay1 = 300; // Simulated one-way delay for testing
         
 
         console.log(`Simulated one-way delay for performer ${performer.id}: ${oneWayDelay1} ms`);

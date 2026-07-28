@@ -28,7 +28,7 @@ export const initialSocketEvents = (
         setMembers(members);
     });
 
-    socketInstance.on("status-update", (totalLatency: number, cb: (ip: boolean, t: number, p: number, tp: number) => void) => {
+    socketInstance.on("status-update", (cb: (ip: boolean, t: number, p: number, tp: number) => void) => {
         const time = convertTime("Server", window.performance.now() + 100, serverOffset.current);
         //const startTime = ((time - (window.performance.now()) + (Tone.immediate() * 1000)) / 1000);
         const position: number = Tone.Time(Tone.getTransport().position).toSeconds();

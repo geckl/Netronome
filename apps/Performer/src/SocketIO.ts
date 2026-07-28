@@ -7,7 +7,7 @@ import React, { RefObject } from "react";
 var backtrack: Tone.Player | null = null;
 var backtrackBufferTotal: ArrayBuffer | null = null;
 
-export const oneWayDelay2 = Math.random() * 500; // Simulated one-way delay for testing
+export const oneWayDelay2 = 300; // Simulated one-way delay for testing
 
 // listen for events emitted by the server
 export const initialSocketEvents = (
@@ -125,7 +125,7 @@ export const connectedSocketEvents = (
       }
       if (connectionState.current === "Connected") {
         // console.log("One Way Offset Average: ", oneWayOffsetAverage.current);
-        const time = convertTime("Client", targetTime, serverOffset.current - oneWayOffsetAverage.current);
+        const time = convertTime("Client", targetTime, serverOffset.current + oneWayOffsetAverage.current);
         if (typeof position === "number") {
           position = Tone.Time(position, "s").toBarsBeatsSixteenths();
         }
@@ -150,7 +150,7 @@ export const connectedSocketEvents = (
       // console.log("One way delay incoming: ", oneWayDelay2);
       if (connectionState.current === "Connected") {
         // console.log("One Way Offset Average: ", oneWayOffsetAverage.current);
-        const time = convertTime("Client", targetTime, serverOffset.current - oneWayOffsetAverage.current);
+        const time = convertTime("Client", targetTime, serverOffset.current + oneWayOffsetAverage.current);
         const startTime = ((time - (window.performance.now() + 100) + (Tone.immediate() * 1000)) / 1000);
         Tone.getTransport().bpm.setValueAtTime(newTempo, startTime);
       }
