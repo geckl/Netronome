@@ -65,13 +65,13 @@ export function cyclicalSync(targetId: string, rtcConnection: RTCConnection, soc
 
     socket.on(`calculate-latency-client-${targetId}`, () => {
        //setTimeout simulated latency
-      setTimeout(() => {
+      //setTimeout(() => {
         // console.log("One way delay incoming: ", oneWayDelay2);
         //  console.log("Client Latency Message Received: ");
         const stop1 = window.performance.now() + 100;
         clientCyclicalLatency = stop1 - start;
         responseHandler();
-      }, oneWayDelay2);
+      //}, oneWayDelay2);
 
     });
 
@@ -93,13 +93,13 @@ export function cyclicalSync(targetId: string, rtcConnection: RTCConnection, soc
       socket.volatile.emit("calculate-latency-server-1", targetId, start, (latencyPlusOffset: number) => {
         //  console.log("Roundtrip Latency Message Received: ");
          //setTimeout simulated latency
-        setTimeout(() => {
+        //setTimeout(() => {
           const stop0 = window.performance.now() + 100;
           roundtripLatency = stop0 - start;
           serverOffset = latencyPlusOffset - (roundtripLatency / 2);
           console.log("SERVER OFFSET: ", serverOffset);
           responseHandler();
-        }, oneWayDelay2);
+        //}, oneWayDelay2);
       });
     }, 10);
 
@@ -132,16 +132,17 @@ export function togglePlayback(play: boolean, time: number = 0, position: string
 
 export async function synchronize(socket: Socket, serverOffsets: RefObject<number[]>, serverOffset: RefObject<number>) {
   let latencies: number[] = [];
+  serverOffsets.current = [];
   for (let i = 0; i < 5; i++) {
     const start = window.performance.now() + 100;
     // volatile, so the packet will be discarded if the socket is not connected
     socket.volatile.emit("calculate-latency", start, (latencyPlusOffset: number) => {
       //setTimeout simulated latency
-      setTimeout(() => {
+      //setTimeout(() => {
         const latency = (window.performance.now() + 100) - start;
         latencies.push(latency / 2);
         serverOffsets.current.push((Math.round(latencyPlusOffset - (latency / 2))));
-      }, oneWayDelay2);
+      //}, oneWayDelay2);
     });
     await timer(500);
   }

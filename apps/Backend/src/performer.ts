@@ -111,14 +111,14 @@ const performerRoutes = (performers: Namespace, conductors: Namespace) => {
             console.log("user disconnected: ", performer.id);
         });
 
-        socket.use((event, next) => {
-             //setTimeout simulated latency
-            setTimeout(() => {
-                // console.log("One way delay incoming: ", oneWayDelay1);
-                next();
-            }, oneWayDelay1);
-        });
-        socket.emit("asymmetric-latency", oneWayDelay1);
+        // socket.use((event, next) => {
+        //      //setTimeout simulated latency
+        //     setTimeout(() => {
+        //         // console.log("One way delay incoming: ", oneWayDelay1);
+        //         next();
+        //     }, oneWayDelay1);
+        // });
+        //socket.emit("asymmetric-latency", oneWayDelay1);
         
 
             setInterval(() => {

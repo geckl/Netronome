@@ -20,12 +20,12 @@ export const initialSocketEvents = (
 ) => {
   socketInstance.on('connect', () => {
      //setTimeout simulated latency
-    setTimeout(() => {
+    //setTimeout(() => {
       // console.log("One way delay incoming: ", oneWayDelay2);
       console.log('Connected to server');
       setSocket(socketInstance);
       socketInstance.emit("rtc-invite", { senderId: socketInstance.id });
-    }, oneWayDelay2);
+   // }, oneWayDelay2);
   });
 
   socketInstance.on("asymmetric-latency", (oneWayDelay1) => {
@@ -34,49 +34,49 @@ export const initialSocketEvents = (
 
   socketInstance.on("ping", (callback) => {
      //setTimeout simulated latency
-    setTimeout(() => {
+    //setTimeout(() => {
       // console.log("One way delay incoming: ", oneWayDelay2);
       callback();
-    }, oneWayDelay2);
+    //}, oneWayDelay2);
   });
 
   socketInstance.on("calculate-latency-server-2", (targetId: string) => {
      //setTimeout simulated latency
-    setTimeout(() => {
+    //setTimeout(() => {
       // console.log("One way delay incoming: ", oneWayDelay2);
       const connection = rtcConnections.get(targetId);
       if (connection) {
         sendMessage(connection, { command: `calculate-latency-server-${socketInstance.id}` });
       }
-    }, oneWayDelay2);
+    //}, oneWayDelay2);
 
   });
 
   socketInstance.on('reconnect', function () {
      //setTimeout simulated latency
-    setTimeout(() => {
+    //setTimeout(() => {
       // console.log("One way delay incoming: ", oneWayDelay2);
       console.log('you have been reconnected!');
       connectionState.current = "Connected";
       setSocket(socketInstance);
-    }, oneWayDelay2);
+    //}, oneWayDelay2);
 
   });
 
   socketInstance.on('disconnect', function () {
      //setTimeout simulated latency
-    setTimeout(() => {
+    //setTimeout(() => {
       // console.log("One way delay incoming: ", oneWayDelay2);
       socketInstance.emit("rtc-message", { type: "bye", senderId: socketInstance.id });
       connectionState.current = "Disconnected";
       setSocket(null);
-    }, oneWayDelay2);
+    //}, oneWayDelay2);
 
   });
 
   socketInstance.on("rtc-message", (e) => {
      //setTimeout simulated latency
-    setTimeout(() => {
+    //setTimeout(() => {
       // console.log("One way delay incoming: ", oneWayDelay2);
       switch (e.type) {
         case "offer":
@@ -95,16 +95,16 @@ export const initialSocketEvents = (
           console.log("unhandled", e);
           break;
       }
-    }, oneWayDelay2);
+    //}, oneWayDelay2);
     // console.log("rtc-message: ", e);
   });
 
   socketInstance.on("rtc-invite", (e) => {
      //setTimeout simulated latency
-    setTimeout(() => {
+    //setTimeout(() => {
       // console.log("One way delay incoming: ", oneWayDelay2);
       makeCall(e, socketInstance, serverOffsets, oneWayOffsets, oneWayOffsetAverage);
-    }, oneWayDelay2);
+    //}, oneWayDelay2);
     // console.log("rtc-invite: ", e);
   });
 };
@@ -118,7 +118,7 @@ export const connectedSocketEvents = (
 ) => {
   socket.on('start', (targetTime: number, position: string | number = "0:0:0", tempo: number | null = null) => {
      //setTimeout simulated latency
-    setTimeout(() => {
+    //setTimeout(() => {
       // console.log("One way delay incoming: ", oneWayDelay2);
       if (tempo) {
         Tone.getTransport().bpm.value = tempo;
@@ -131,22 +131,22 @@ export const connectedSocketEvents = (
         }
         togglePlayback(true, time, position);
       }
-    }, oneWayDelay2);
+    //}, oneWayDelay2);
   });
 
   socket.on('stop', (data) => {
      //setTimeout simulated latency
-    setTimeout(() => {
+    //setTimeout(() => {
       // console.log("One way delay incoming: ", oneWayDelay2);
       console.log(`stop`);
       togglePlayback(false);
-    }, oneWayDelay2);
+    //}, oneWayDelay2);
 
   });
 
   socket.on('change-tempo', (targetTime: number, position: string = "0:0:0", newTempo: number) => {
      //setTimeout simulated latency
-    setTimeout(() => {
+    //setTimeout(() => {
       // console.log("One way delay incoming: ", oneWayDelay2);
       if (connectionState.current === "Connected") {
         // console.log("One Way Offset Average: ", oneWayOffsetAverage.current);
@@ -154,13 +154,13 @@ export const connectedSocketEvents = (
         const startTime = ((time - (window.performance.now() + 100) + (Tone.immediate() * 1000)) / 1000);
         Tone.getTransport().bpm.setValueAtTime(newTempo, startTime);
       }
-    }, oneWayDelay2);
+    //}, oneWayDelay2);
 
   });
 
   socket.on("backtrack", (backtrackBuffer: ArrayBuffer | null) => {
      //setTimeout simulated latency
-    setTimeout(() => {
+    //setTimeout(() => {
       // console.log("One way delay incoming: ", oneWayDelay2);
       if (backtrackBuffer === null) {
         console.log("Remove Backtrack!");
@@ -203,7 +203,7 @@ export const connectedSocketEvents = (
         }
         );
       }
-    }, oneWayDelay2);
+    //}, oneWayDelay2);
   });
 
 }
