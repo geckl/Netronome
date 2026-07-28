@@ -16,19 +16,22 @@ function App() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [socket, setSocket] = useState<Socket | null>(null);
   // const [isPlaying, setIsPlaying] = useState(false);
-  const serverOffset = useRef<number>(0);
   const volume = useRef<Tone.Gain>(null);
   // const backtrack = useRef<Tone.Player>(null);
   const [colorMode, setColorMode] = useState<string>("#61DAFB");
+  const serverOffsets = useRef<number[]>([]);
+  const serverOffset = useRef<number>(0);
   const oneWayOffsets = useRef<number[]>([]);
-  const [oneWayOffsetAverage, setOneWayOffsetAverage] = useState<number>(0);
+  const oneWayOffsetAverage = useRef<number>(0);
   // const [timeOrigin, setTimeOrigin] = useState(window.performance.timeOrigin);
+
+  console.log(serverOffsets.current);
 
   useEffect(() => {
     const socketInstance = io();
 
     // Add socketIO listeners needed for connection
-    initialSocketEvents(socketInstance, setSocket, connectionState, oneWayOffsets, setOneWayOffsetAverage);
+    initialSocketEvents(socketInstance, setSocket, connectionState, serverOffsets, oneWayOffsets, oneWayOffsetAverage);
 
     return () => {
       if (socketInstance) {
@@ -43,7 +46,7 @@ function App() {
     if (socket) {
       try {
         setIsSyncing(true);
-        const latencies = await synchronize(socket, serverOffset);
+        const latencies = await synchronize(socket, serverOffsets, serverOffset);
         socket.emit("sync-orchestra", latencies);
         setIsSyncing(false);
         connectionState.current = "Connected";
@@ -99,7 +102,7 @@ function App() {
       }, "4n", 0);
 
       try {
-        const latencies = await synchronize(socket, serverOffset);
+        const latencies = await synchronize(socket, serverOffsets, serverOffset);
         connectionState.current = "Connected";
         socket.emit("sync-orchestra", latencies);
         setIsSyncing(false);

@@ -13,10 +13,16 @@ const performerRoutes = (performers: Namespace, conductors: Namespace) => {
         members.push(performer);
         membersCounter++;
         console.log("performer connected: ", performer);
+
+        const oneWayDelay1 = 300; // Simulated one-way delay for testing
+        
+
+        console.log(`Simulated one-way delay for performer ${performer.id}: ${oneWayDelay1} ms`);
+
         if (orc.conductor) {
             conductors.sockets.get(orc.conductor.id)?.emit("update-members", members);
         }
-        // socket.emit("starttime", baselineDate);
+
 
         socket.on("request-join", () => {
             performer.status = "Connecting";
@@ -28,9 +34,10 @@ const performerRoutes = (performers: Namespace, conductors: Namespace) => {
             cb(latencyPlusOffset);
         });
 
-        socket.on("calculate-latency-server-1", (targetId: string, cb: () => void) => {
+        socket.on("calculate-latency-server-1", (targetId: string, time: number, cb: (latencyPlusOffset: number) => void) => {
             socket.to(targetId).volatile.emit("calculate-latency-server-2", socket.id);
-            cb();
+            const latencyPlusOffset = performance.now() - time;
+            cb(latencyPlusOffset);
         });
 
         socket.on("calculate-latency-client-2", (targetId) => {
@@ -48,7 +55,7 @@ const performerRoutes = (performers: Namespace, conductors: Namespace) => {
             if (performer.status !== "Connected") {
                 performer.status = "Connected"
                 orc.addPerformer(performer);
-                if(orc.backtrack) {
+                if (orc.backtrack) {
                     socket.emit('backtrack', orc.backtrack);
                 }
             }
@@ -86,7 +93,7 @@ const performerRoutes = (performers: Namespace, conductors: Namespace) => {
 
         socket.on("rtc-message", (message) => {
             // console.log("rtc-message: ", message);
-            if(message.targetId) {
+            if (message.targetId) {
                 socket.to(message.targetId).emit("rtc-message", message);
             } else {
                 socket.broadcast.emit("rtc-message", message);
@@ -104,19 +111,29 @@ const performerRoutes = (performers: Namespace, conductors: Namespace) => {
             console.log("user disconnected: ", performer.id);
         });
 
-        setInterval(() => {
-            if (orc.isPlaying) {
-                const start = performance.now();
-                socket.emit("ping", () => {
-                    const latency = (performance.now() - start) / 2;
-                    performer.latencies.push(latency);
-                    performer.latencies.shift();
-                    orc.updateLatencies(performer.latencies);
-                });
-                // conductors.emit("update-members", memebers);
-            }
-        }, 10000);
-    });
+        socket.use((event, next) => {
+             //setTimeout simulated latency
+            setTimeout(() => {
+                // console.log("One way delay incoming: ", oneWayDelay1);
+                next();
+            }, oneWayDelay1);
+        });
+        socket.emit("asymmetric-latency", oneWayDelay1);
+        
+
+            setInterval(() => {
+                if (orc.isPlaying) {
+                    const start = performance.now();
+                    socket.emit("ping", () => {
+                        const latency = (performance.now() - start) / 2;
+                        performer.latencies.push(latency);
+                        performer.latencies.shift();
+                        orc.updateLatencies(performer.latencies);
+                    });
+                    // conductors.emit("update-members", memebers);
+                }
+            }, 10000);
+        });
 }
 
 export default performerRoutes;
