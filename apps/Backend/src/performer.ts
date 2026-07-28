@@ -5,8 +5,6 @@ import { io, orc } from "./server.ts"
 const members: Performer[] = [];
 let membersCounter = 0;
 
-const timer = ms => new Promise(res => setTimeout(res, ms));
-
 const performerRoutes = (performers: Namespace, conductors: Namespace) => {
 
     // Performer Socket
@@ -17,7 +15,7 @@ const performerRoutes = (performers: Namespace, conductors: Namespace) => {
         console.log("performer connected: ", performer);
 
         const oneWayDelay1 = Math.random() * 500; // Simulated one-way delay for testing
-        const oneWayDelay2 = Math.random() * 500;
+        
 
         console.log(`Simulated one-way delay for performer ${performer.id}: ${oneWayDelay1} ms`);
 
@@ -36,9 +34,10 @@ const performerRoutes = (performers: Namespace, conductors: Namespace) => {
             cb(latencyPlusOffset);
         });
 
-        socket.on("calculate-latency-server-1", (targetId: string, cb: () => void) => {
+        socket.on("calculate-latency-server-1", (targetId: string, time: number, cb: (latencyPlusOffset: number) => void) => {
             socket.to(targetId).volatile.emit("calculate-latency-server-2", socket.id);
-            cb();
+            const latencyPlusOffset = performance.now() - time;
+            cb(latencyPlusOffset);
         });
 
         socket.on("calculate-latency-client-2", (targetId) => {
@@ -113,22 +112,14 @@ const performerRoutes = (performers: Namespace, conductors: Namespace) => {
         });
 
         socket.use((event, next) => {
+             //setTimeout simulated latency
             setTimeout(() => {
+                // console.log("One way delay incoming: ", oneWayDelay1);
                 next();
             }, oneWayDelay1);
         });
-        socket.emit("asymmetric-latency", oneWayDelay1, oneWayDelay2);
-
-        const originalEmit = socket.emit;
-
-        socket.emit = (...args) => {
-            // Add a 1000ms (1 second) delay
-            setTimeout(() => {
-                originalEmit.apply(socket, args);
-            }, oneWayDelay2)
-            return true;
-        };
-
+        socket.emit("asymmetric-latency", oneWayDelay1);
+        
 
             setInterval(() => {
                 if (orc.isPlaying) {
