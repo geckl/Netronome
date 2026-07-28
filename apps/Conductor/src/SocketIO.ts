@@ -29,7 +29,7 @@ export const initialSocketEvents = (
     });
 
     socketInstance.on("status-update", (totalLatency: number, cb: (ip: boolean, t: number, p: number, tp: number) => void) => {
-        const time = convertTime("Server", window.performance.now() + 100 + totalLatency, serverOffset.current);
+        const time = convertTime("Server", window.performance.now() + 100, serverOffset.current);
         //const startTime = ((time - (window.performance.now()) + (Tone.immediate() * 1000)) / 1000);
         const position: number = Tone.Time(Tone.getTransport().position).toSeconds();
         cb(Tone.getTransport().state === "started", time, position, tempo.current);
