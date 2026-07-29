@@ -79,6 +79,23 @@
   width: 250px;
 }
 
+.Delay-slider {
+  display:flex;
+  flex-direction:column;
+  margin-top: 50px;
+  align-items: center;
+  justify-content: center;
+}
+
+.Delay-slider label {
+  font-size: 16px;
+  color: #61dafb;
+}
+
+.Delay-slider input {
+  width: 250px;
+}
+
 .spinner-3 {
   width: 15px;
   padding: 8px;

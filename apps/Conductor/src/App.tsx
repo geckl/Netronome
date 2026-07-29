@@ -17,6 +17,7 @@ import SharePopup from './components/Connections/SharePopup';
 import { initialSocketEvents } from './SocketIO';
 import Peaks, { PeaksInstance } from 'peaks.js';
 import { get } from 'http';
+import { Toaster, toaster } from "./components/ui/toaster"
 
 
 var peaks: PeaksInstance | undefined = undefined;
@@ -72,7 +73,9 @@ function App() {
       console.log("Join Orchestra!");
       setConnectionState("Connecting")
 
-      const audioContext = new Tone.Context();
+      const audioContext = new Tone.Context({
+              lookAhead: 0.5
+            });
       Tone.setContext(audioContext, true);
       Tone.getTransport().bpm.value = 60;
       volume.current = new Tone.Gain(0.5).toDestination();
@@ -91,19 +94,6 @@ function App() {
       // This must be called on a button click for browser compatibility
       await Tone.start();
 
-      const latencies = await synchronize(socket, serverOffset);
-
-      // Add socketIO listeners needed for performance
-      socket.on("server-update", (tempo: number, isPlaying: boolean) => {
-        setTempo(tempo);
-      });
-
-      socket.on("server-backtrack", (arrayBuffer: ArrayBuffer) => {
-        setBacktrack(arrayBuffer, socket);
-        // console.log("Server Backtrack: ", arrayBuffer);
-      });
-      socket.emit("conductor-sync-orchestra", latencies);
-
       //create a synth and connect it to the main output
       var player = new Tone.Player(Woodblock);
       player.connect(volume.current);
@@ -117,7 +107,30 @@ function App() {
         }, time + .1)
       }, "4n", 0);
 
-      setConnectionState("Connected");
+      const latencies = await synchronize(socket, serverOffset);
+
+      // Add socketIO listeners needed for performance
+      socket.on("server-update", (tempo: number, isPlaying: boolean) => {
+        setTempo(tempo);
+      });
+
+      socket.on("server-backtrack", (arrayBuffer: ArrayBuffer) => {
+        setBacktrack(arrayBuffer, socket);
+        // console.log("Server Backtrack: ", arrayBuffer);
+      });
+      socket.emit("conductor-sync-orchestra", latencies, (success: boolean) => {
+        if (success) {
+          console.log("Conductor synced to orchestra!");
+          setConnectionState("Connected");
+        } else {
+          console.error("A conductor is already connected!");
+          setConnectionState("Disconnected");
+          toaster.create({
+            title: "Error",
+            description: "A conductor is already connected!",
+          })
+        }
+      });
     }
   }
 
@@ -126,7 +139,7 @@ function App() {
     if (socket) {
       if (play) {
         setState("paused");
-        const targetTime = convertTime("Server", window.performance.now() + 100, serverOffset.current);
+        const targetTime = convertTime("Server", window.performance.now() + 500, serverOffset.current);
         socket.emit('conductor-start', targetTime, position, (newTargetTime: number) => {
           const time = convertTime("Client", newTargetTime, serverOffset.current);
           const startTime = ((time - (window.performance.now()) + (Tone.immediate() * 1000)) / 1000);
@@ -147,11 +160,11 @@ function App() {
   function setTempo(newTempo: number) {
     tempo.current = newTempo;
     if (socket) {
-      const targetTime = convertTime("Server", window.performance.now() + 100, serverOffset.current)
+      const targetTime = convertTime("Server", window.performance.now() + 500, serverOffset.current)
       const position = "0:0:0";
       socket.emit("conductor-change-tempo", targetTime, position, newTempo, (newTargetTime: number) => {
         let time = convertTime("Client", newTargetTime, serverOffset.current);
-        const startTime = ((time - (window.performance.now() + 100) + (Tone.immediate() * 1000)) / 1000);
+        const startTime = ((time - (window.performance.now() + 500) + (Tone.immediate() * 1000)) / 1000);
         Tone.getTransport().bpm.setValueAtTime(newTempo, startTime);
       });
     }
@@ -231,7 +244,7 @@ function App() {
             if (Tone.getTransport().state !== "paused") {
               this.eventEmitter.emit('player.seeked', time);
               this.eventEmitter.emit('player.timeupdate', time);
-            } else{
+            } else {
               this.eventEmitter.emit('player.timeupdate', Tone.getTransport().seconds);
             }
           },
@@ -289,7 +302,7 @@ function App() {
               Tone.getTransport().position = position;
               await togglePlayback(true, position);
               peaksInstance.views.getView('overview')?.enableSeek(true);
-            } 
+            }
           });
           peaks = peaksInstance;
         });
@@ -335,6 +348,7 @@ function App() {
             <CloseButton variant="ghost" colorPalette="blue" onClick={() => setBacktrack(null, socket)} />
           </HStack>}
         </VStack>) : null}
+        <Toaster />
         {/* <InputDropdown class="controls" inputs={audioInputs} setSelectedAudioId={setSelectedAudioId} isJoined={!isJoined} ></InputDropdown> */}
       </VStack>
     </div>

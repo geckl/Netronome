@@ -53,6 +53,7 @@ const performerRoutes = (performers: Namespace, conductors: Namespace) => {
             console.log("sync-orchestra: ");
             performer.latencies = latencies;
             if (performer.status !== "Connected") {
+                console.log("step 1");
                 performer.status = "Connected"
                 orc.addPerformer(performer);
                 if (orc.backtrack) {
@@ -61,9 +62,11 @@ const performerRoutes = (performers: Namespace, conductors: Namespace) => {
             }
             // socket.join("ensemble");
             if (orc.conductor) {
+                console.log("step 2");
                 conductors.sockets.get(orc.conductor.id)?.emit("update-members", members);
                 conductors.sockets.get(orc.conductor.id)?.emit("status-update", (isPlaying: boolean, targetTime: number, position: number, tempo: number) => {
                     if (isPlaying) {
+                        console.log("step 3");
                         const newTargetTime = targetTime + orc.totalLatency;
                         const newPosition = position + (orc.totalLatency / 1000);
                         socket.emit('start', newTargetTime, newPosition, tempo);
@@ -86,19 +89,19 @@ const performerRoutes = (performers: Namespace, conductors: Namespace) => {
             console.log(err.message);
         });
 
-        socket.on("rtc-invite", (message) => {
-            console.log("rtc-invite: ", message);
-            socket.broadcast.emit("rtc-invite", message);
-        });
+        // socket.on("rtc-invite", (message) => {
+        //     console.log("rtc-invite: ", message);
+        //     socket.broadcast.emit("rtc-invite", message);
+        // });
 
-        socket.on("rtc-message", (message) => {
-            // console.log("rtc-message: ", message);
-            if (message.targetId) {
-                socket.to(message.targetId).emit("rtc-message", message);
-            } else {
-                socket.broadcast.emit("rtc-message", message);
-            }
-        });
+        // socket.on("rtc-message", (message) => {
+        //     // console.log("rtc-message: ", message);
+        //     if (message.targetId) {
+        //         socket.to(message.targetId).emit("rtc-message", message);
+        //     } else {
+        //         socket.broadcast.emit("rtc-message", message);
+        //     }
+        // });
 
         socket.on('disconnect', () => {
             if (performer.status === "Connected") {

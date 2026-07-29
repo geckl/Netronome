@@ -17,6 +17,8 @@ function App() {
   const [socket, setSocket] = useState<Socket | null>(null);
   // const [isPlaying, setIsPlaying] = useState(false);
   const volume = useRef<Tone.Gain>(null);
+  const delay = useRef<number>(0);
+  const [delayDisplay, setDelayDisplay] = useState<number>(0);
   // const backtrack = useRef<Tone.Player>(null);
   const [colorMode, setColorMode] = useState<string>("#61DAFB");
   const serverOffsets = useRef<number[]>([]);
@@ -25,7 +27,7 @@ function App() {
   const oneWayOffsetAverage = useRef<number>(0);
   // const [timeOrigin, setTimeOrigin] = useState(window.performance.timeOrigin);
 
-  console.log(serverOffsets.current);
+  // console.log(serverOffsets.current);
 
   useEffect(() => {
     const socketInstance = io();
@@ -43,14 +45,16 @@ function App() {
   }, []);
 
   async function resyncOrchestra() {
+    console.log("Resync Orchestra!");
     if (socket) {
       try {
         setIsSyncing(true);
         const latencies = await synchronize(socket, serverOffsets, serverOffset);
         socket.emit("sync-orchestra", latencies);
         setIsSyncing(false);
-        connectionState.current = "Connected";
+        //connectionState.current = "Connected";
       } catch (error) {
+        console.error("Resync failed: ", error);
         connectionState.current = "Disconnected";
         setIsSyncing(false);
         resetTransport();
@@ -60,6 +64,7 @@ function App() {
   }
 
   async function joinOrchestra() {
+    console.log("Join Orchestra!");
     if (!socket) {
       console.error("Socket is not connected!");
       connectionState.current = "Disconnected";
@@ -77,11 +82,13 @@ function App() {
       console.log("Join Orchestra!");
       connectionState.current = "Connecting"
 
-      const audioContext = new Tone.Context();
+      const audioContext = new Tone.Context({
+        lookAhead: 0.5
+      });
+
       Tone.setContext(audioContext, true);
       Tone.getTransport().bpm.value = 60;
       volume.current = new Tone.Gain(0.5).toDestination();
-
       // This must be called on a button click for browser compatibility
       await Tone.start();
 
@@ -92,13 +99,15 @@ function App() {
       var player = new Tone.Player(Woodblock);
       player.connect(volume.current);
       Tone.getTransport().scheduleRepeat((time) => {
-        player.start(time);
+        const delayedTime = time + (delay.current / 1000)
+        //console.log("delayedTime: ", delayedTime, "delay: ", delay.current);
+        player.start(delayedTime);
         Tone.getDraw().schedule(function () {
           setColorMode("white");
-        }, time)
+        }, delayedTime)
         Tone.getDraw().schedule(function () {
           setColorMode("#61DAFB");
-        }, time + .1)
+        }, delayedTime + .1)
       }, "4n", 0);
 
       try {
@@ -120,12 +129,26 @@ function App() {
     const value = parseFloat(e.target.value);
     if (volume.current) {
       volume.current.gain.value = value;
+      console.log("Volume changed to: ", volume.current.gain.value);
     }
+  }
+
+  function onDelayChange(e) {
+    const value = parseInt(e.target.value);
+    delay.current = value;
+    setDelayDisplay(value);
+    console.log("Delay changed to: ", delay.current);
+  }
+
+  function resetValue(e) {
+    e.target.value = 0;
+    delay.current = 0;
+    setDelayDisplay(0);
   }
 
   return (
     <div className="App" style={{ backgroundColor: "#00161e" }}>
-      <div style={{height: "100vh", width: "100vw", backgroundColor: "#00161e" }} justify-content="top" align-items="center">
+      <div style={{ height: "100vh", width: "100vw", backgroundColor: "#00161e" }} justify-content="top" align-items="center">
         <header className="App-header">
           <p>
             NETRONOME
@@ -137,10 +160,15 @@ function App() {
           <div className="spinner-3" hidden={!isSyncing}></div>
         </button>
         {connectionState.current === "Connected" &&
-          (<div className="Volume-slider">
-            <label htmlFor="volume">Volume</label>
+          (<div><div className="Volume-slider">
+            <label htmlFor="volume">Volume:</label>
             <input type="range" id="volume" min={0} max={1} step={.01} defaultValue={0.5} onChange={onVolumeChange} />
-          </div>)}
+          </div>
+            <div className="Delay-slider">
+              <label htmlFor="delay">Delay: {delayDisplay} ms</label>
+              <input type="range" id="delay" min={-500} max={500} step={1} defaultValue={0} onChange={onDelayChange} onDoubleClick={resetValue}
+              />
+            </div></div>)}
         <ToastContainer />
       </div>
     </div>

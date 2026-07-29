@@ -9,16 +9,17 @@ const conductorRoutes = (conductors: Namespace, performers: Namespace) => {
     // Conductor Socket
     conductors.on('connection', (socket: Socket) => {
 
-        if (orc.conductor) {
-            console.log("A conductor is already connected!");
-            socket.emit("error", "A conductor is already connected! Disconnecting...");
-            socket.disconnect(true);
-            return;
-        }
+        // if (orc.conductor) {
+        //     console.log("A conductor is already connected!");
+        //     socket.emit("error", "A conductor is already connected! Disconnecting...");
+        //     socket.disconnect(true);
+        //     return;
+        // }
+
         console.log("conductor joined!");
         const conductor: Performer = { id: socket.id, name: "Conductor", status: "Disconnected", latencies: [] }
-        orc.conductor = conductor;
         socket.emit("server-ip", ipAddress);
+
 
         socket.on("request-join", () => {
             conductor.status = "Connecting";
@@ -35,16 +36,26 @@ const conductorRoutes = (conductors: Namespace, performers: Namespace) => {
         //   console.log("heartbeat");
         // });
 
-        socket.on("conductor-sync-orchestra", (latencies: number[]) => {
+        socket.on("conductor-sync-orchestra", (latencies: number[], cb: (bool: boolean) => void) => {
+
+            if(!orc.conductor) {
+                orc.conductor = conductor;
+            } else if (orc.conductor.id !== conductor.id) {
+                console.log("A conductor is already connected!");
+                //socket.emit("error", "A conductor is already connected!");
+                return cb(false);
+            }
+            
             conductor.latencies = latencies;
             conductor.status = "Connected"
             // orc.addPerformer(conductor);
             // conductors.emit("update-members", members);
             socket.emit("server-update", orc.tempo, orc.isPlaying,);
-            if(orc.backtrack) {
+            if (orc.backtrack) {
                 socket.emit('server-backtrack', orc.backtrack);
             }
             console.log("conductor synced to orchestra: ", conductor);
+            return cb(true);
         });
 
         socket.on('conductor-start', (targetTime: number, position: string, cb: (newTargetTime: number) => void) => {
@@ -78,12 +89,11 @@ const conductorRoutes = (conductors: Namespace, performers: Namespace) => {
                 tmp.set(new Uint8Array(buffer1), 0);
                 tmp.set(new Uint8Array(buffer2), buffer1.byteLength);
                 return tmp.buffer;
-              };
+            };
             performers.emit('backtrack', backtrack);
-            if(backtrack === null)
-            {
+            if (backtrack === null) {
                 orc.backtrack = null;
-            } else if(orc.backtrack === null) {
+            } else if (orc.backtrack === null) {
                 orc.backtrack = backtrack;
             } else {
                 orc.backtrack = appendBuffer(orc.backtrack, backtrack);
@@ -95,9 +105,9 @@ const conductorRoutes = (conductors: Namespace, performers: Namespace) => {
             performers.emit('audioStream', audioData);
         });
 
-        socket.on("rtc-message", (message) => {
-            socket.broadcast.emit("rtc-message", message);
-        });
+        // socket.on("rtc-message", (message) => {
+        //     socket.broadcast.emit("rtc-message", message);
+        // });
 
         socket.on('disconnect', () => {
             if (orc.conductor && orc.conductor.id === conductor.id) {

@@ -110,9 +110,9 @@ export async function synchronize(socket: Socket, serverOffset: RefObject<number
   let latencies: number[] = [];
   let serverOffsets: number[] = [];
   for (let i = 0; i < 5; i++) {
-    const start = window.performance.now() + 100;
+    const start = window.performance.now() + 500;
     socket.volatile.emit("calculate-latency", start, (latencyPlusOffset: number) => {
-      const latency = (window.performance.now() + 100) - start;
+      const latency = (window.performance.now() + 500) - start;
       latencies.push(latency / 2);
       serverOffsets.push((latencyPlusOffset - (latency / 2)));
     });
