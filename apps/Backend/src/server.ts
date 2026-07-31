@@ -25,8 +25,8 @@ export const ipAddress = Object.values(networkInterfaces).reduce((r: any, list: 
 // Only allow conductor mode to be accessed by the computer running Netronome
 const onlyLocal = (req, res, next) => {
   const ip = req.ip || req.connection.remoteAddress;
-  //console.log("Incoming request from IP: ", ip);
-  if ( ip === ipAddress || ip === '::ffff:' + ipAddress) {
+  console.log("Incoming request from IP: ", ip);
+  if ( ip === ipAddress || ip === '::ffff:' + ipAddress || ip === '::1' ){
     next();
   } else {
     res.status(403).send('Access denied: Conductor mode may only be accessed by the computer running Netronome.');
@@ -51,7 +51,7 @@ performerHandlers(performers, conductors);
 server.listen(port, async () => {
   if (ipAddress) {
     console.log("Connect to Metronome here: http://" + ipAddress + ":3000");
-    await open(`http://${ipAddress}:3000/conductor`);
+    await open(`http://localhost:3000/conductor`);
   } else {
     console.log("ERROR: NO NETWORK CONNECTION FOUND")
   }

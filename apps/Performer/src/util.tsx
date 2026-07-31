@@ -64,13 +64,13 @@ export function cyclicalSync(targetId: string, rtcConnection: RTCConnection, soc
     }
 
     socket.on(`calculate-latency-client-${targetId}`, () => {
-       //setTimeout simulated latency
+      //setTimeout simulated latency
       //setTimeout(() => {
-        // console.log("One way delay incoming: ", oneWayDelay2);
-        //  console.log("Client Latency Message Received: ");
-        const stop1 = window.performance.now() + 500;
-        clientCyclicalLatency = stop1 - start;
-        responseHandler();
+      // console.log("One way delay incoming: ", oneWayDelay2);
+      //  console.log("Client Latency Message Received: ");
+      const stop1 = window.performance.now() + 500;
+      clientCyclicalLatency = stop1 - start;
+      responseHandler();
       //}, oneWayDelay2);
 
     });
@@ -92,13 +92,13 @@ export function cyclicalSync(targetId: string, rtcConnection: RTCConnection, soc
       sendMessage(rtcConnection, { command: "calculate-latency-client-1", senderId: socket.id });
       socket.volatile.emit("calculate-latency-server-1", targetId, start, (latencyPlusOffset: number) => {
         //  console.log("Roundtrip Latency Message Received: ");
-         //setTimeout simulated latency
+        //setTimeout simulated latency
         //setTimeout(() => {
-          const stop0 = window.performance.now() + 500;
-          roundtripLatency = stop0 - start;
-          serverOffset = latencyPlusOffset - (roundtripLatency / 2);
-          console.log("SERVER OFFSET: ", serverOffset);
-          responseHandler();
+        const stop0 = window.performance.now() + 500;
+        roundtripLatency = stop0 - start;
+        serverOffset = latencyPlusOffset - (roundtripLatency / 2);
+        console.log("SERVER OFFSET: ", serverOffset);
+        responseHandler();
         //}, oneWayDelay2);
       });
     }, 10);
@@ -141,9 +141,9 @@ export async function synchronize(socket: Socket, serverOffsets: RefObject<numbe
     socket.volatile.emit("calculate-latency", start, (latencyPlusOffset: number) => {
       //setTimeout simulated latency
       //setTimeout(() => {
-        const latency = (window.performance.now() + 500) - start;
-        latencies.push(latency / 2);
-        serverOffsets.current.push((Math.round(latencyPlusOffset - (latency / 2))));
+      const latency = (window.performance.now() + 500) - start;
+      latencies.push(latency / 2);
+      serverOffsets.current.push((Math.round(latencyPlusOffset - (latency / 2))));
       //}, oneWayDelay2);
     });
     await timer(500);
@@ -164,4 +164,21 @@ export function resetTransport() {
   Tone.getTransport().stop();
   Tone.getTransport().cancel();
   Tone.getTransport().dispose();
+}
+
+export const playAudio = (audioData: any) => {
+  console.log("Play audio!");
+  var newData = audioData.split(";");
+  newData[0] = "data:audio/ogg;";
+  newData = newData[0] + newData[1];
+
+  var micAudio = new Tone.Player(newData).toDestination();
+  Tone.loaded().then(() => {
+    micAudio.start();
+  });
+  // var audio = new Audio(newData);
+  if (!micAudio || document.hidden) {
+    return;
+  }
+  // audio.play();
 }

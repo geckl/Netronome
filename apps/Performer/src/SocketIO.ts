@@ -1,6 +1,6 @@
 import { Socket } from "socket.io-client";
 // import { handleAnswer, handleCandidate, handleOffer, hangup, makeCall, rtcConnections } from './WebRTC';
-import { convertTime, sendMessage, togglePlayback } from "./util";
+import { convertTime, playAudio, sendMessage, togglePlayback } from "./util";
 import * as Tone from "tone";
 import React, { RefObject } from "react";
 
@@ -207,5 +207,9 @@ export const connectedSocketEvents = (
       }
     //}, oneWayDelay2);
   });
+
+  socket.on('audioStream', (audioData) => {
+     playAudio(audioData)
+    });
 
 }

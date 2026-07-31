@@ -6,86 +6,89 @@ import React, { RefObject } from "react";
 // Returns a Promise that resolves after "ms" Milliseconds
 export const timer = ms => new Promise(res => setTimeout(res, ms));
 
-// export function getDevices({ setAudioInputs }: { setAudioInputs: (inputs: MediaDeviceInfo[]) => void }) {
-//   const inputs: MediaDeviceInfo[] = [];
-//   if (!navigator.mediaDevices?.enumerateDevices) {
-//     console.log("enumerateDevices() not supported.");
-//   } else {
-//     // List cameras and microphones.
-//     navigator.mediaDevices
-//       .enumerateDevices()
-//       .then((devices) => {
-//         devices.forEach((device) => {
-//           //console.log(`${device.kind}: ${device.label} id = ${device.deviceId}`);
-//           if (device.kind == "audioinput") {
-//             inputs.push(device);
-//           }
-//         });
-//         setAudioInputs(inputs);
-//       })
-//       .catch((err) => {
-//         console.error(`${err.name}: ${err.message}`);
-//       });
-//   }
-// }
+export async function getDevices(setAudioInputs: (inputs: MediaDeviceInfo[]) => void) {
+    const inputs: MediaDeviceInfo[] = [];
+    console.log(navigator.mediaDevices);
+    await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+    if (!navigator.mediaDevices?.enumerateDevices) {
+      console.log("enumerateDevices() not supported.");
+    } else {
+      // List cameras and microphones.
+      navigator.mediaDevices
+        .enumerateDevices()
+        .then((devices) => {
+          devices.forEach((device) => {
+            //console.log(`${device.kind}: ${device.label} id = ${device.deviceId}`);
+            if (device.kind == "audioinput") {
+              inputs.push(device);
+            }
+          });
+          setAudioInputs(inputs);
+        })
+        .catch((err) => {
+          console.error(`${err.name}: ${err.message}`);
+        });
+    }
+  }
 
-// export const streamAudio = ({ selectedAudioId, socket }: { selectedAudioId: string, socket: Socket }) => {
-//   if (selectedAudioId && socket) {
-//     console.log("New Audio Source Selected: " + selectedAudioId);
-//     navigator.mediaDevices.getUserMedia({
-//       audio: {
-//         deviceId: {
-//           exact: selectedAudioId,
-//         },
-//       },
-//       video: false
-//     })
-//       .then((stream) => {
-//         var madiaRecorder = new MediaRecorder(stream);
-//         var audioChunks: Blob[] = [];
+export const streamAudio = ({ selectedAudioId, socket }: { selectedAudioId: string, socket: Socket }) => {
+  console.log("stream audio!")
+  if (selectedAudioId && socket) {
+    console.log("New Audio Source Selected: " + selectedAudioId);
+    navigator.mediaDevices.getUserMedia({
+      audio: {
+        deviceId: {
+          exact: selectedAudioId,
+        },
+      },
+      video: false
+    })
+      .then((stream) => {
+        var madiaRecorder = new MediaRecorder(stream);
+        var audioChunks: Blob[] = [];
 
-//         madiaRecorder.addEventListener("dataavailable", function (event) {
-//           audioChunks.push(event.data);
-//         });
+        madiaRecorder.addEventListener("dataavailable", function (event) {
+          audioChunks.push(event.data);
+        });
 
-//         madiaRecorder.addEventListener("stop", function () {
-//           var audioBlob = new Blob(audioChunks);
-//           audioChunks = [];
-//           var fileReader = new FileReader();
-//           fileReader.readAsDataURL(audioBlob);
-//           fileReader.onloadend = function () {
-//             var base64String = fileReader.result;
-//             socket.volatile.emit("audioStream", base64String);
-//           };
+        madiaRecorder.addEventListener("stop", function () {
+          var audioBlob = new Blob(audioChunks);
+          audioChunks = [];
+          var fileReader = new FileReader();
+          fileReader.readAsDataURL(audioBlob);
+          fileReader.onloadend = function () {
+            var base64String = fileReader.result;
+            socket.volatile.emit("audioStream", base64String);
+          };
 
-//           madiaRecorder.start();
-//           setTimeout(function () {
-//             madiaRecorder.stop();
-//           }, 1000);
-//         });
+          madiaRecorder.start();
+          setTimeout(function () {
+            madiaRecorder.stop();
+          }, 1000);
+        });
 
-//         madiaRecorder.start();
-//         setTimeout(function () {
-//           madiaRecorder.stop();
-//         }, 1000);
-//       })
-//       .catch((error) => {
-//         console.error('Error capturing audio.', error);
-//       });
-//   }
-// }
+        madiaRecorder.start();
+        setTimeout(function () {
+          madiaRecorder.stop();
+        }, 1000);
+      })
+      .catch((error) => {
+        console.error('Error capturing audio.', error);
+      });
+  }
+}
 
-// export const playAudio = (audioData: any) => {
-//   var newData = audioData.split(";");
-//   newData[0] = "data:audio/ogg;";
-//   newData = newData[0] + newData[1];
+export const playAudio = (audioData: any) => {
+  var newData = audioData.split(";");
+  newData[0] = "data:audio/ogg;";
+  newData = newData[0] + newData[1];
 
-//   var audio = new Audio(newData);
-//   if (!audio || document.hidden) {
-//     return;
-//   }
-//   audio.play();
-// }
+  var audio = new Audio(newData);
+  if (!audio || document.hidden) {
+    return;
+  }
+  audio.play();
+}
 
 export const convertTime = (destination: DeviceType, time: number, serverOffset: number) => {
   if (destination === "Server") {

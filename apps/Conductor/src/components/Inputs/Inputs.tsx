@@ -8,14 +8,14 @@ function InputDropdown(props) {
     }
 
     return (
-        <label hidden={props.isJoined}>
+        <label >
             {"Select an Audio Source:   "}
             <select
                 name="Audio Source"
-                style={{ width: "300px" }}
+                style={{ width: "300px", color: "black", backgroundColor: "white" }}
                 onChange={changeInput}
             >
-                <option disabled={true} selected={true}> -- select an option -- </option>
+                <option disabled={false} selected={true}> -- No Microphone -- </option>
                 {props.inputs.map((input, i) =>
                 (
                     <option

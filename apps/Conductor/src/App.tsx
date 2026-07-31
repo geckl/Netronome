@@ -7,17 +7,20 @@ import io, { Socket } from 'socket.io-client';
 // import InputDropdown from './components/Inputs';
 import React from 'react';
 import { ConnectionStatus, JoinButton, NetronomePlaybackState, Performer } from './types';
-import { Button, CloseButton, HStack, Spacer, VStack } from "@chakra-ui/react"
+import { Button, CloseButton, SegmentGroup, HStack, Spacer, VStack, Tabs } from "@chakra-ui/react"
 import ConnectionsDrawer from './components/Connections/ConnectionsDrawer';
 import { TempoSlider } from './components/Tempo/TempoSlider';
-import { convertTime, resetTransport, synchronize, timer } from './util';
+import { convertTime, getDevices, resetTransport, streamAudio, synchronize, timer } from './util';
 import { BacktrackButton } from './components/Backtrack/BacktrackButton';
 import { VolumeSlider } from './components/Volume/VolumeSlider';
 import SharePopup from './components/Connections/SharePopup';
 import { initialSocketEvents } from './SocketIO';
 import Peaks, { PeaksInstance } from 'peaks.js';
-import { get } from 'http';
 import { Toaster, toaster } from "./components/ui/toaster"
+import { TbMetronome } from "react-icons/tb";
+import { GiSoundWaves } from "react-icons/gi";
+import { FaMicrophone } from "react-icons/fa";
+import InputDropdown from './components/Inputs/Inputs';
 
 
 var peaks: PeaksInstance | undefined = undefined;
@@ -37,6 +40,12 @@ function App() {
   const volume = useRef<Tone.Gain>(null);
   const tempo = useRef<number>(60);
   const [state, setState] = useState<NetronomePlaybackState>("stopped");
+  const [metronomeMode, setMetronomeMode] = useState<string | null>("Static")
+
+  const metronome = useRef<Tone.Player | null>(null);
+
+  const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]); //MediaDeviceInfo
+  const [selectedAudioId, setSelectedAudioId] = useState(null);
 
   useEffect(() => {
     const socketInstance = io('/conductor', {
@@ -57,6 +66,22 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (selectedAudioId && socket) {
+      streamAudio({ selectedAudioId, socket });
+    }
+  }, [selectedAudioId]);
+
+  useEffect(() => {
+    if (metronome.current !== null) {
+      if (metronomeMode === "Off") {
+        metronome.current.mute = true;
+      } else {
+        metronome.current.mute = false;
+      }
+    }
+  }, [metronomeMode]);
+
   async function joinOrchestra() {
     if (!socket) {
       console.error("Socket is not connected!");
@@ -74,8 +99,8 @@ function App() {
       setConnectionState("Connecting")
 
       const audioContext = new Tone.Context({
-              lookAhead: 0.5
-            });
+        lookAhead: 0.5
+      });
       Tone.setContext(audioContext, true);
       Tone.getTransport().bpm.value = 60;
       volume.current = new Tone.Gain(0.5).toDestination();
@@ -95,10 +120,11 @@ function App() {
       await Tone.start();
 
       //create a synth and connect it to the main output
-      var player = new Tone.Player(Woodblock);
-      player.connect(volume.current);
+      metronome.current = new Tone.Player(Woodblock);
+      // Tone.getDestination().connect(volume.current);
+      metronome.current.connect(volume.current);
       Tone.getTransport().scheduleRepeat((time) => {
-        player.start(time);
+        metronome.current?.start(time);
         Tone.getDraw().schedule(function () {
           setColorMode("white");
         }, time)
@@ -131,6 +157,8 @@ function App() {
           })
         }
       });
+
+      getDevices(setAudioInputs);
     }
   }
 
@@ -339,14 +367,37 @@ function App() {
           <div className="spinner-3" hidden={(connectionState !== "Connecting")}></div>
         </Button>
         <Button className="controls" bg="brand.700" onClick={async () => await togglePlayback(state === "stopped", Tone.getTransport().position)} loading={state === "paused"} hidden={connectionState !== "Connected"} >{state !== "stopped" ? "Stop" : "Play"}</Button>
-        {(connectionState === "Connected") ? (<VStack>
+        {(connectionState === "Connected") ? (<VStack w={"75%"}>
           <VolumeSlider volume={volume} />
-          <TempoSlider tempo={tempo} setTempo={setTempo} />
           <Spacer />
-          {!isBacktrack ? <BacktrackButton setBacktrack={setBacktrack} socket={socket} /> : <HStack>
-            <div id="overview-container"></div>
-            <CloseButton variant="ghost" colorPalette="blue" onClick={() => setBacktrack(null, socket)} />
-          </HStack>}
+          <Tabs.Root colorPalette={"blue"} defaultValue={"metronome"} w={"75%"} size='md' justify={"center"} >
+            <Tabs.List>
+              <Spacer />
+              <Tabs.Trigger value="metronome">
+                <TbMetronome color={"white"} size={"32"} />
+              </Tabs.Trigger>
+              <Spacer />
+              <Tabs.Trigger value="track">
+                <GiSoundWaves color={"white"} size={"32"} />
+              </Tabs.Trigger>
+              <Spacer />
+              <Tabs.Trigger value="microphone">
+                <FaMicrophone color={"white"} size={"32"} />
+              </Tabs.Trigger>
+              <Spacer />
+            </Tabs.List>
+            <Tabs.Content value="metronome"><VStack><TempoSlider setTempo={setTempo} metronomeMode={metronomeMode} setMetronomeMode={setMetronomeMode} /></VStack></Tabs.Content>
+            <Tabs.Content value="track" ><VStack>{!isBacktrack ? <BacktrackButton setBacktrack={setBacktrack} socket={socket} /> : <HStack>
+              <div id="overview-container"></div>
+              <CloseButton variant="ghost" colorPalette="blue" onClick={() => setBacktrack(null, socket)} />
+            </HStack>}</VStack></Tabs.Content>
+            <Tabs.Content value="microphone">
+              <InputDropdown class="controls" inputs={audioInputs} setSelectedAudioId={setSelectedAudioId} ></InputDropdown>
+            </Tabs.Content>
+          </Tabs.Root>
+
+          <Spacer />
+
         </VStack>) : null}
         <Toaster />
         {/* <InputDropdown class="controls" inputs={audioInputs} setSelectedAudioId={setSelectedAudioId} isJoined={!isJoined} ></InputDropdown> */}
