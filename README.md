@@ -65,6 +65,14 @@ The Conductor app lives at **`/conductor`** on the backend and is restricted to 
 
 - **Select an Audio Source** dropdown lists every audio input on the machine (`-- No Microphone --` by default).
 - Picking a device starts continuously streaming the conductor's microphone (1 s chunks) to all performers — useful for count-ins, spoken cues, or letting the band hear the conductor live.
+- Selecting a source also opens an **input mixer** showing every channel of that device (mono, stereo L/R, or multi-channel USB interfaces):
+  - Per-channel **fader**, **mute** and **pan** controls, each with a canvas level meter (RMS bar, peak overshoot, peak-hold).
+  - A **master** strip with its own fader, meter and **monitor level** so the conductor can hear the mix locally (headphones recommended to avoid feedback).
+  - The **broadcast is post-fader**: performers receive exactly the mix as set in the mixer (faders, pan, mute, master all applied).
+  - Master/monitor levels persist across source changes, and the browser's voice processing (echo cancellation, noise suppression, auto gain) is disabled for raw musical input.
+- **Streaming transport** — the mix travels to performers in two tiers:
+  1. **WebRTC unicast** (primary): one peer connection per performer, fed from the mixer's master stream. Audio flows device-to-device at ~150–350 ms latency; the backend only relays signaling. Track swaps when the input device changes are seamless (`replaceTrack`), and connected performers stop receiving the legacy chunks.
+  2. **Legacy 1-second chunks** (fallback): browsers without WebRTC (or while a WebRTC channel is still being established) keep receiving the old `audioStream` base64 chunks — automatically scoped to just those performers.
 
 ### Performers Panel
 
@@ -96,7 +104,8 @@ The Performer app is served at the backend's root (**`/`**) and is designed for 
 - Plays the woodblock click on every quarter note, scheduled with the same latency-aware target timestamps as everyone else. If a start command happens to arrive too late, the performer fast-forwards to the correct position rather than starting from bar 1.
 - The app logo **blinks on every beat** — a silent, visual pulse.
 - Received **backing tracks** (from the Conductor) are decoded and played synced with the transport, and removed when the conductor clears them.
-- The conductor's **live microphone stream** is played back when it arrives (silenced automatically while the browser tab is hidden).
+- The conductor's **live microphone/mix stream** now arrives over a **WebRTC channel** whenever the browser supports it (~150–350 ms latency instead of the old ~1.5 s chunk delays); browsers without WebRTC fall back to the base64 chunk stream. Audio is unlocked by the Join/Resync tap (iOS Safari autoplay requirement). The **Volume** slider applies to click, backtrack and live stream alike; the live stream pauses while the browser tab is hidden.
+- A **Delay slider (−500 to +500 ms, 1 ms steps)** shifts the click only, for personal phase alignment when standing apart from other players acoustically. Double-click the slider to reset it to 0 ms.
 
 ### Manual Calibration
 
@@ -118,6 +127,7 @@ yarn start        # starts the backend on port 3000 (runs with tsx, no precompil
 
 - The Conductor UI opens automatically in your browser, and is available at **http://localhost:3000/conductor**.
 - Performers join by opening **http://<your-LAN-ip>:3000/** — the exact address is shown in the Conductor's Share dialog and QR code, and in the server console (`Connect to Metronome here: http://<ip>:3000`).
+- The live mic/mix streams device-to-device over WebRTC on the LAN (no STUN/TURN needed); the backend relays signaling and serves both apps.
 
 ### Development
 
@@ -139,8 +149,8 @@ The backend includes a `pkg` configuration to build self-contained binaries (`di
 
 | Layer      | Technologies |
 |------------|-------------|
-| Conductor  | React 19, TypeScript, Create React App, Chakra UI v3, Tone.js (transport/audio), peaks.js (waveform), socket.io-client, react-icons |
-| Performer  | React 19, TypeScript, Create React App, Tone.js, socket.io-client, react-toastify |
+| Conductor  | React 19, TypeScript, Create React App, Chakra UI v3, Tone.js (transport/audio), Web Audio API + WebRTC (mic mixer & streaming), peaks.js (waveform), socket.io-client, react-icons |
+| Performer  | React 19, TypeScript, Create React App, Tone.js, WebRTC (live audio), socket.io-client, react-toastify |
 | Backend    | Node.js (ESM), Express 5, Socket.IO 4, tsx, `open`, `pkg` |
 
 Both front-ends ship full **PWA manifests** (installable, standalone display) with icons, though no offline service worker is included.

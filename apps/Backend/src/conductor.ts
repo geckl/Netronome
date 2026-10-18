@@ -100,14 +100,25 @@ const conductorRoutes = (conductors: Namespace, performers: Namespace) => {
             }
         })
 
-        // Handle incoming audio stream
-        socket.on('audioStream', (audioData: string | ArrayBuffer | null) => {
-            performers.emit('audioStream', audioData);
+        // WebRTC signaling emitted by the conductor client, relayed to one performer
+        socket.on('rtc-offer', (targetId: string, offer: unknown) => {
+            console.log("rtc-offer ->", targetId);
+            performers.to(targetId).emit('rtc-offer', socket.id, offer);
         });
 
-        // socket.on("rtc-message", (message) => {
-        //     socket.broadcast.emit("rtc-message", message);
-        // });
+        socket.on('rtc-ice', (targetId: string, candidate: unknown) => {
+            performers.to(targetId).emit('rtc-ice', socket.id, candidate);
+        });
+
+        // Legacy chunked stream: optionally targeted at specific performers.
+        // Undefined targets = legacy behaviour (relay to everyone).
+        socket.on('audioStream', (audioData: string | ArrayBuffer | null, targets?: string[]) => {
+            if (Array.isArray(targets)) {
+                targets.forEach((id) => performers.to(id).volatile.emit('audioStream', audioData));
+            } else {
+                performers.emit('audioStream', audioData);
+            }
+        });
 
         socket.on('disconnect', () => {
             if (orc.conductor && orc.conductor.id === conductor.id) {

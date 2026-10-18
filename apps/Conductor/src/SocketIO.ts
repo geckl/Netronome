@@ -9,7 +9,8 @@ export const initialSocketEvents = (
     setIpAddress: (ip: string) => void,
     setMembers: (members: Performer[]) => void,
     serverOffset: RefObject<number>,
-    tempo: RefObject<number>
+    tempo: RefObject<number>,
+    onMembers?: (members: Performer[]) => void
 ) => {
     // listen for events emitted by the server
     socketInstance.on('connect', () => {
@@ -29,6 +30,7 @@ export const initialSocketEvents = (
 
     socketInstance.on("update-members", (members: Performer[]) => {
         setMembers(members);
+        onMembers?.(members);
     });
 
     socketInstance.on("status-update", (cb: (ip: boolean, t: number, p: number, tp: number) => void) => {

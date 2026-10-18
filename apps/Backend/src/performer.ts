@@ -103,6 +103,20 @@ const performerRoutes = (performers: Namespace, conductors: Namespace) => {
         //     }
         // });
 
+        // WebRTC signaling from a performer, relayed to the conductor (with the performer id attached)
+        socket.on("rtc-invite", () => {
+            console.log("rtc-invite from", socket.id);
+            conductors.emit("rtc-invite", socket.id);
+        });
+
+        socket.on("rtc-answer", (answer: unknown) => {
+            conductors.emit("rtc-answer", socket.id, answer);
+        });
+
+        socket.on("rtc-ice", (candidate: unknown) => {
+            conductors.emit("rtc-ice", socket.id, candidate);
+        });
+
         socket.on('disconnect', () => {
             if (performer.status === "Connected") {
                 orc.removePerformer(performer);
@@ -110,7 +124,7 @@ const performerRoutes = (performers: Namespace, conductors: Namespace) => {
             performer.status = "Disconnected"
             let performerIndex = members.map(c => c.id).indexOf(performer.id)
             members.splice(performerIndex, 1);
-            // conductors.emit("update-members", members);
+            conductors.emit("update-members", members);
             console.log("user disconnected: ", performer.id);
         });
 

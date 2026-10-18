@@ -31,53 +31,6 @@ export async function getDevices(setAudioInputs: (inputs: MediaDeviceInfo[]) => 
     }
   }
 
-export const streamAudio = ({ selectedAudioId, socket }: { selectedAudioId: string, socket: Socket }) => {
-  console.log("stream audio!")
-  if (selectedAudioId && socket) {
-    console.log("New Audio Source Selected: " + selectedAudioId);
-    navigator.mediaDevices.getUserMedia({
-      audio: {
-        deviceId: {
-          exact: selectedAudioId,
-        },
-      },
-      video: false
-    })
-      .then((stream) => {
-        var madiaRecorder = new MediaRecorder(stream);
-        var audioChunks: Blob[] = [];
-
-        madiaRecorder.addEventListener("dataavailable", function (event) {
-          audioChunks.push(event.data);
-        });
-
-        madiaRecorder.addEventListener("stop", function () {
-          var audioBlob = new Blob(audioChunks);
-          audioChunks = [];
-          var fileReader = new FileReader();
-          fileReader.readAsDataURL(audioBlob);
-          fileReader.onloadend = function () {
-            var base64String = fileReader.result;
-            socket.volatile.emit("audioStream", base64String);
-          };
-
-          madiaRecorder.start();
-          setTimeout(function () {
-            madiaRecorder.stop();
-          }, 1000);
-        });
-
-        madiaRecorder.start();
-        setTimeout(function () {
-          madiaRecorder.stop();
-        }, 1000);
-      })
-      .catch((error) => {
-        console.error('Error capturing audio.', error);
-      });
-  }
-}
-
 export const playAudio = (audioData: any) => {
   var newData = audioData.split(";");
   newData[0] = "data:audio/ogg;";

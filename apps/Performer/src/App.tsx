@@ -7,6 +7,7 @@ import io, { Socket } from 'socket.io-client';
 import { resetTransport, synchronize } from './util';
 import { ConnectionStatus, JoinButton } from './types';
 import { connectedSocketEvents, initialSocketEvents } from './SocketIO';
+import { MicReceiver } from './rtc/MicReceiver';
 import { ToastContainer, toast } from 'react-toastify';
 
 
@@ -25,17 +26,25 @@ function App() {
   const serverOffset = useRef<number>(0);
   const oneWayOffsets = useRef<number[]>([]);
   const oneWayOffsetAverage = useRef<number>(0);
-  // const [timeOrigin, setTimeOrigin] = useState(window.performance.timeOrigin);
+  // WebRTC receiver for the conductor's live mic/mix + its volume
+  const receiverRef = useRef<MicReceiver | null>(null);
+  const lastVolume = useRef<number>(0.5);
 
   // console.log(serverOffsets.current);
 
   useEffect(() => {
     const socketInstance = io();
 
+    receiverRef.current = new MicReceiver(socketInstance, {
+      isActive: () => connectionState.current === "Connected",
+    });
+
     // Add socketIO listeners needed for connection
     initialSocketEvents(socketInstance, setSocket, connectionState, serverOffsets, oneWayOffsets, oneWayOffsetAverage);
 
     return () => {
+      receiverRef.current?.dispose();
+      receiverRef.current = null;
       if (socketInstance) {
         socketInstance.disconnect();
         socketInstance.removeAllListeners();
@@ -49,6 +58,7 @@ function App() {
     if (socket) {
       try {
         setIsSyncing(true);
+        receiverRef.current?.primeAudio(); // user gesture — unlocks autoplay for the WebRTC stream
         const latencies = await synchronize(socket, serverOffsets, serverOffset);
         socket.emit("sync-orchestra", latencies);
         setIsSyncing(false);
@@ -81,6 +91,8 @@ function App() {
       setIsSyncing(true);
       console.log("Join Orchestra!");
       connectionState.current = "Connecting"
+
+      receiverRef.current?.primeAudio(); // user gesture — unlocks autoplay for the WebRTC stream
 
       const audioContext = new Tone.Context({
         lookAhead: 0.5
@@ -131,6 +143,8 @@ function App() {
       volume.current.gain.value = value;
       console.log("Volume changed to: ", volume.current.gain.value);
     }
+    lastVolume.current = value;
+    receiverRef.current?.setVolume(value); // live mic/mix volume
   }
 
   function onDelayChange(e) {

@@ -10,7 +10,7 @@ import { ConnectionStatus, JoinButton, NetronomePlaybackState, Performer } from 
 import { Button, CloseButton, SegmentGroup, HStack, Spacer, VStack, Tabs } from "@chakra-ui/react"
 import ConnectionsDrawer from './components/Connections/ConnectionsDrawer';
 import { TempoSlider } from './components/Tempo/TempoSlider';
-import { convertTime, getDevices, resetTransport, streamAudio, synchronize, timer } from './util';
+import { convertTime, getDevices, resetTransport, synchronize, timer } from './util';
 import { BacktrackButton } from './components/Backtrack/BacktrackButton';
 import { VolumeSlider } from './components/Volume/VolumeSlider';
 import SharePopup from './components/Connections/SharePopup';
@@ -21,6 +21,9 @@ import { TbMetronome } from "react-icons/tb";
 import { GiSoundWaves } from "react-icons/gi";
 import { FaMicrophone } from "react-icons/fa";
 import InputDropdown from './components/Inputs/Inputs';
+import { MicAudioEngine } from './audio/MicAudioEngine';
+import Mixer from './components/Mixer/Mixer';
+import { MicStreamBroadcaster } from './rtc/MicStreamBroadcaster';
 
 
 var peaks: PeaksInstance | undefined = undefined;
@@ -47,6 +50,17 @@ function App() {
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]); //MediaDeviceInfo
   const [selectedAudioId, setSelectedAudioId] = useState(null);
 
+  // Mic mixer engine: ref so sockets/callbacks can reach it inside effects,
+  // state so the Mixer UI re-renders when the engine is created/destroyed.
+  const mixerRef = useRef<MicAudioEngine | null>(null);
+  const [mixer, setMixer] = useState<MicAudioEngine | null>(null);
+  const setMixerEngine = (engine: MicAudioEngine | null) => {
+    mixerRef.current = engine;
+    setMixer(engine);
+  };
+  // WebRTC broadcaster: lives at mount level so invites can arrive anytime.
+  const broadcasterRef = useRef<MicStreamBroadcaster | null>(null);
+
   useEffect(() => {
     const socketInstance = io('/conductor', {
       transports: ['websocket'],
@@ -54,8 +68,19 @@ function App() {
     });
     setSocket(socketInstance);
 
+    broadcasterRef.current = new MicStreamBroadcaster(socketInstance, () => {
+      return mixerRef.current?.getBroadcastStream() ?? null;
+    });
+
     // Add socketIO listeners needed for connection
-    initialSocketEvents(socketInstance, setIpAddress, setMembers, serverOffset, tempo);
+    initialSocketEvents(
+      socketInstance,
+      setIpAddress,
+      setMembers,
+      serverOffset,
+      tempo,
+      (members) => broadcasterRef.current?.onMembersUpdate(members)
+    );
 
     return () => {
       if (socketInstance) {
@@ -63,12 +88,52 @@ function App() {
         socketInstance.removeAllListeners();
         setSocket(null);
       }
+      broadcasterRef.current?.dispose();
+      broadcasterRef.current = null;
+      mixerRef.current?.dispose();
+      mixerRef.current = null;
     };
   }, []);
 
   useEffect(() => {
     if (selectedAudioId && socket) {
-      streamAudio({ selectedAudioId, socket });
+      let cancelled = false;
+      (async () => {
+        try {
+          let engine = mixerRef.current;
+          if (!engine) {
+            engine = new MicAudioEngine();
+            setMixerEngine(engine);
+          }
+          // WebRTC integration: publish/remove the broadcast track on graph changes,
+          // and target legacy 1-second chunks only at performers without a flowing channel.
+          engine.onStreamChanged = (media) => broadcasterRef.current?.onStreamChanged(media);
+          engine.setLegacySink((data) => {
+            socket.volatile.emit("audioStream", data, broadcasterRef.current?.legacyTargets());
+          });
+          await engine.setSource(selectedAudioId);
+          if (cancelled) {
+            return;
+          }
+          engine.startStreaming(socket);
+        } catch (error) {
+          console.error("Mic mixer error:", error);
+          mixerRef.current?.teardown();
+          toaster.create({
+            title: "Error",
+            description: "Could not open audio source: " + ((error as Error)?.message ?? error),
+          });
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    } else {
+      // Source deselected (or no socket): stop streaming and dispose the mixer.
+      if (mixerRef.current) {
+        mixerRef.current.dispose();
+        setMixerEngine(null);
+      }
     }
   }, [selectedAudioId]);
 
@@ -93,6 +158,11 @@ function App() {
     if (connectionState === "Connected") {
       setConnectionState("Disconnected");
       resetTransport();
+      if (mixerRef.current) {
+        mixerRef.current.dispose();
+        setMixerEngine(null);
+      }
+      setSelectedAudioId(null);
       return;
     } else {
       console.log("Join Orchestra!");
@@ -392,7 +462,10 @@ function App() {
               <CloseButton variant="ghost" colorPalette="blue" onClick={() => setBacktrack(null, socket)} />
             </HStack>}</VStack></Tabs.Content>
             <Tabs.Content value="microphone">
-              <InputDropdown class="controls" inputs={audioInputs} setSelectedAudioId={setSelectedAudioId} ></InputDropdown>
+              <VStack>
+                <InputDropdown class="controls" inputs={audioInputs} setSelectedAudioId={setSelectedAudioId} ></InputDropdown>
+                <Mixer engine={mixer} ></Mixer>
+              </VStack>
             </Tabs.Content>
           </Tabs.Root>
 
