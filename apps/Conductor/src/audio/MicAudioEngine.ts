@@ -211,12 +211,10 @@ export class MicAudioEngine {
     this.broadcastDest = broadcastDest;
     source.connect(splitter);
 
-    // Defaults: unity faders, centered pans — except for stereo sources, where
-    // hard L/R keeps the original stereo image (we split channels, so without
-    // panning L+R would sum into a mono-ish center).
+    // Defaults: unity faders, centered pans
     const channels: ChannelState[] = strips.map((_, i) => ({
       gain: 1,
-      pan: count === 2 ? (i === 0 ? -1 : 1) : 0,
+      pan: 0,
       muted: false,
     }));
     channels.forEach((channel, i) => this.applyStrip(i, channel));
