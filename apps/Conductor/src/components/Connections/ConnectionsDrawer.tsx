@@ -1,23 +1,25 @@
 import {
   Button,
+  Badge,
   CloseButton,
   Drawer,
   Status,
   Portal,
-  VStack,
-  Spacer,
+  HStack,
 } from "@chakra-ui/react"
-import React, { useRef } from "react"
+import React from "react"
 import ConnectionsTable from "./ConnectionsTable"
 import { Performer } from "../../types"
 
 const ConnectionsDrawer = ({members}: {members: Performer[]}) => {
-  const ref = useRef<HTMLInputElement>(null)
   return (
-    <Drawer.Root initialFocusEl={() => ref.current} size="md">
+    <Drawer.Root size="md">
       <Drawer.Trigger asChild>
-        <Button size="sm" bg="brand.500" position={"absolute"} right={1} top={1}>
+        <Button size="sm" colorPalette="cyan">
           Performers
+          <Badge colorPalette="gray" variant="subtle">
+            {members.length}
+          </Badge>
         </Button>
       </Drawer.Trigger>
       <Portal>
@@ -29,29 +31,23 @@ const ConnectionsDrawer = ({members}: {members: Performer[]}) => {
             </Drawer.Header>
             <Drawer.Body>
               <ConnectionsTable members={members}></ConnectionsTable>
-              {/* <Stack mt="5">
-                <Input defaultValue="Naruto" placeholder="First name" />
-                <Input ref={ref} placeholder="Email" />
-              </Stack> */}
             </Drawer.Body>
             <Drawer.Footer>
-            <VStack gap="1">
+              {/* Color key for the status dots in the table */}
+              <HStack gap="4" mx="auto" wrap="wrap" justify="center">
                 <Status.Root colorPalette="red">
-                    <Status.Indicator />
-                    Disconnected
+                  <Status.Indicator />
+                  Disconnected
                 </Status.Root>
                 <Status.Root colorPalette="yellow">
-                    <Status.Indicator />
-                    Connecting
+                  <Status.Indicator />
+                  Connecting
                 </Status.Root>
                 <Status.Root colorPalette="green">
-                    <Status.Indicator />
-                    Connected
+                  <Status.Indicator />
+                  Connected
                 </Status.Root>
-            </VStack>
-            <Spacer />
-              <Button variant="outline">Cancel</Button>
-              <Button>Save</Button>
+              </HStack>
             </Drawer.Footer>
             <Drawer.CloseTrigger asChild>
               <CloseButton size="sm" />

@@ -6,7 +6,7 @@ const SharePopup = ({ipAddress}: {ipAddress: string | null}) => {
     return(
         <Dialog.Root size="lg">
           <Dialog.Trigger asChild>
-            <Button disabled={!ipAddress} size="sm" bg="brand.500" position={"absolute"} left={1} top={1}>
+            <Button disabled={!ipAddress} size="sm" colorPalette="cyan">
               Share
             </Button>
           </Dialog.Trigger>

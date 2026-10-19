@@ -1,116 +1,260 @@
+/* ======================================================================
+   Netronome — Performer styles
+   Design tokens are shared with apps/Conductor/src/styles/App.css so both
+   frontends stay visually consistent (brand.900 panel + brand.500 accent).
+   ====================================================================== */
+
+:root {
+  --ntrm-bg: #00161e;          /* brand.900 */
+  --ntrm-panel: #0d151b;
+  --ntrm-border: #1b2830;
+  --ntrm-accent: #18b1df;      /* brand.500 */
+  --ntrm-accent-soft: #51d6fb; /* brand.300 */
+  --ntrm-text: #e8f6ff;
+  --ntrm-muted: #93b1bf;
+}
+
+html,
+body {
+  background-color: var(--ntrm-bg);
+}
+
 .App {
-  text-align: center;
   min-height: 100vh;
-  min-width: 100vw;
+  width: 100%;
+  background-color: var(--ntrm-bg);
+  color: var(--ntrm-text);
+  text-align: center;
+  font-size: 16px;
   display: flex;
-  background-color: #282c34;
   flex-direction: column;
   align-items: center;
-  /* justify-content: center; */
-  font-size: calc(10px + 2vmin);
-  color: white;
+  overflow-x: clip;
 }
 
-.Standard-mode{
-  background-color: #282c34;
+/* ---------------------------------------------------------------- Header */
+
+.App-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 0 4px;
 }
 
-
-.White-mode{
-  background-color: white;
+.App-header p {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: var(--ntrm-muted);
 }
 
 .App-logo {
-  height: 40vmin;
+  height: clamp(40px, 7vmin, 72px);
   pointer-events: none;
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .App-logo {
-    animation: App-logo-spin infinite 20s linear;
+    animation: App-logo-pulse 2.4s ease-in-out infinite;
   }
 }
 
-.App-link {
-  color: #61dafb;
-}
-
-.canvas-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-width: 100%;
-  min-height: 100%;
-}
-
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
+@keyframes App-logo-pulse {
+  0%, 100% {
+    opacity: 0.85;
   }
-  to {
-    transform: rotate(360deg);
+  50% {
+    opacity: 1;
   }
 }
+
+/* --------------------------------------------------------------- Button */
 
 .Join-button {
-  width: 200px;
-  height: 40px;
-  font-size: large;
-  /* float: left; */
-  /* display: flex; */
+  width: 220px;
+  height: 44px;
+  font-size: 16px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
   justify-content: center;
+  gap: 8px;
   position: relative;
+  border-radius: 10px;
+  cursor: pointer;
+  border: none;
+  background-color: var(--ntrm-accent);
+  color: #04161e;
+  transition: background-color 0.15s ease, transform 0.15s ease;
 }
 
-.Volume-slider {
-  display:flex;
-  flex-direction:column;
-  margin-top: 50px;
-  align-items: center;
-  justify-content: center;
+.Join-button:hover:not(:disabled) {
+  background-color: var(--ntrm-accent-soft);
 }
 
-.Volume-slider label {
-  font-size: 16px;
-  color: #61dafb;
+.Join-button:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
-.Volume-slider input {
-  width: 250px;
-}
-
-.Delay-slider {
-  display:flex;
-  flex-direction:column;
-  margin-top: 50px;
-  align-items: center;
-  justify-content: center;
-}
-
-.Delay-slider label {
-  font-size: 16px;
-  color: #61dafb;
-}
-
-.Delay-slider input {
-  width: 250px;
+.Join-button:disabled {
+  opacity: 0.55;
+  cursor: wait;
 }
 
 .spinner-3 {
-  width: 15px;
-  padding: 8px;
+  width: 16px;
+  padding: 3px;
   aspect-ratio: 1;
   border-radius: 50%;
-  background: #25b09b;
-  /* position: absolute; */
-  justify-self: center;
-  --_m: 
-    conic-gradient(#0000 10%,#000),
+  background: var(--ntrm-accent-soft);
+  --_m:
+    conic-gradient(#0000 10%, #000),
     linear-gradient(#000 0 0) content-box;
   -webkit-mask: var(--_m);
-          mask: var(--_m);
+  mask: var(--_m);
   -webkit-mask-composite: source-out;
-          mask-composite: subtract;
+  mask-composite: subtract;
   animation: s3 1s infinite linear;
 }
-@keyframes s3 {to{transform: rotate(1turn)}}
+
+@keyframes s3 {
+  to {
+    transform: rotate(1turn)
+  }
+}
+
+/* --------------------------------------------------- Audio control panel */
+
+.Performer-controls {
+  margin-top: 28px;
+  padding: 24px 32px 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background-color: var(--ntrm-panel);
+  border: 1px solid var(--ntrm-border);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.Volume-slider,
+.Delay-slider {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.Delay-slider {
+  margin-top: 26px;
+}
+
+.Volume-slider label,
+.Delay-slider label {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ntrm-muted);
+}
+
+/* Signed delay readout: negative = ahead (left), positive = behind (right) */
+.Delay-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--ntrm-text);
+}
+
+.Delay-value.positive {
+  color: #ffd166;
+}
+
+.Delay-value.negative {
+  color: var(--ntrm-accent-soft);
+}
+
+.Slider-hint {
+  font-size: 11px;
+  color: var(--ntrm-muted);
+  opacity: 0.85;
+}
+
+/* Last sync's measured one-way latency */
+.Performer-stats {
+  display: flex;
+  justify-content: center;
+}
+
+.Stat-chip {
+  margin-top: 24px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--ntrm-border);
+  background-color: rgba(255, 255, 255, 0.04);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ntrm-accent-soft);
+  white-space: nowrap;
+}
+
+.Volume-slider input,
+.Delay-slider input {
+  width: min(280px, 70vw);
+  accent-color: var(--ntrm-accent);
+  cursor: pointer;
+}
+
+/* Custom track/thumb so the sliders read correctly on the dark panel */
+.Performer-controls input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 22px;
+  background: transparent;
+}
+
+.Performer-controls input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background-color: var(--ntrm-border);
+}
+
+.Performer-controls input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background-color: var(--ntrm-accent-soft);
+  border: 2px solid var(--ntrm-accent);
+  box-shadow: 0 0 6px rgba(24, 177, 223, 0.5);
+}
+
+.Performer-controls input[type="range"]::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background-color: var(--ntrm-border);
+}
+
+.Performer-controls input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background-color: var(--ntrm-accent-soft);
+  border: 2px solid var(--ntrm-accent);
+  box-shadow: 0 0 6px rgba(24, 177, 223, 0.5);
+}
+
+/* --------------------------------------------------------- Responsive */
+
+@media (max-width: 480px) {
+  .App-header {
+    padding: 16px 12px 4px;
+  }
+
+  .App-header p {
+    letter-spacing: 0.2em;
+  }
+}

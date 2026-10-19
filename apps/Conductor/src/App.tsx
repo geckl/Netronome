@@ -42,13 +42,14 @@ function App() {
   const [colorMode, setColorMode] = useState<string>("#61DAFB");
   const volume = useRef<Tone.Gain>(null);
   const tempo = useRef<number>(60);
+  const [tempoValue, setTempoValue] = useState<number>(60);
   const [state, setState] = useState<NetronomePlaybackState>("stopped");
   const [metronomeMode, setMetronomeMode] = useState<string | null>("Static")
 
   const metronome = useRef<Tone.Player | null>(null);
 
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]); //MediaDeviceInfo
-  const [selectedAudioId, setSelectedAudioId] = useState(null);
+  const [selectedAudioId, setSelectedAudioId] = useState<string | null>(null);
 
   // Mic mixer engine: ref so sockets/callbacks can reach it inside effects,
   // state so the Mixer UI re-renders when the engine is created/destroyed.
@@ -257,6 +258,9 @@ function App() {
 
   function setTempo(newTempo: number) {
     tempo.current = newTempo;
+    // Keeps the controlled tempo slider in sync with what the orchestra
+    // actually plays — server tempo changes flow through here too.
+    setTempoValue(newTempo);
     if (socket) {
       const targetTime = convertTime("Server", window.performance.now() + 500, serverOffset.current)
       const position = "0:0:0";
@@ -423,47 +427,50 @@ function App() {
 
   return (
     <div className="App" >
-      <VStack h="100vh" w="100vw" justifyContent="top" alignItems="center" spacing={4} bg="brand.900">
-        <header>
+      <VStack minH="100vh" w="100%" justifyContent="top" alignItems="center" spacing={4} bg="brand.900">
+        <header className="App-header">
+          <Logo className="App-logo" fill={colorMode} />
           <p>
             NETRONOME (CONDUCTOR MODE)
           </p>
-          <Logo className="App-logo" fill={colorMode} />
+          <nav className="App-nav">
+            <SharePopup ipAddress={ipAddress} />
+            <ConnectionsDrawer members={members} />
+          </nav>
         </header>
-        <ConnectionsDrawer members={members}></ConnectionsDrawer>
-        <SharePopup ipAddress={ipAddress}></SharePopup>
-        <Button onClick={() => joinOrchestra()} disabled={connectionState === "Connecting"} className="Join-button" bg="brand.300">
+        <Button onClick={() => joinOrchestra()} disabled={connectionState === "Connecting"} className="Join-button" colorPalette="cyan">
           {JoinButton[connectionState]}
           <div className="spinner-3" hidden={(connectionState !== "Connecting")}></div>
         </Button>
-        <Button className="controls" bg="brand.700" onClick={async () => await togglePlayback(state === "stopped", Tone.getTransport().position)} loading={state === "paused"} hidden={connectionState !== "Connected"} >{state !== "stopped" ? "Stop" : "Play"}</Button>
+        <Button className="Play-button" colorPalette="cyan" onClick={async () => await togglePlayback(state === "stopped", Tone.getTransport().position)} loading={state === "paused"} hidden={connectionState !== "Connected"} >
+          {state !== "stopped" ? "Stop" : "Play"}
+        </Button>
         {(connectionState === "Connected") ? (<VStack w={"75%"}>
           <VolumeSlider volume={volume} />
           <Spacer />
-          <Tabs.Root colorPalette={"blue"} defaultValue={"metronome"} w={"75%"} size='md' justify={"center"} >
+          <Tabs.Root colorPalette={"cyan"} defaultValue={"metronome"} w={"100%"} size='md' justify={"center"} >
             <Tabs.List>
-              <Spacer />
-              <Tabs.Trigger value="metronome">
-                <TbMetronome color={"white"} size={"32"} />
+              <Tabs.Trigger value="metronome" gap={2}>
+                <TbMetronome size={22} />
+                Metronome
               </Tabs.Trigger>
-              <Spacer />
-              <Tabs.Trigger value="track">
-                <GiSoundWaves color={"white"} size={"32"} />
+              <Tabs.Trigger value="track" gap={2}>
+                <GiSoundWaves size={22} />
+                Track
               </Tabs.Trigger>
-              <Spacer />
-              <Tabs.Trigger value="microphone">
-                <FaMicrophone color={"white"} size={"32"} />
+              <Tabs.Trigger value="microphone" gap={2}>
+                <FaMicrophone size={22} />
+                Mic
               </Tabs.Trigger>
-              <Spacer />
             </Tabs.List>
-            <Tabs.Content value="metronome"><VStack><TempoSlider setTempo={setTempo} metronomeMode={metronomeMode} setMetronomeMode={setMetronomeMode} /></VStack></Tabs.Content>
+            <Tabs.Content value="metronome"><VStack><TempoSlider tempo={tempoValue} setTempo={setTempo} metronomeMode={metronomeMode} setMetronomeMode={setMetronomeMode} /></VStack></Tabs.Content>
             <Tabs.Content value="track" ><VStack>{!isBacktrack ? <BacktrackButton setBacktrack={setBacktrack} socket={socket} /> : <HStack>
               <div id="overview-container"></div>
               <CloseButton variant="ghost" colorPalette="blue" onClick={() => setBacktrack(null, socket)} />
             </HStack>}</VStack></Tabs.Content>
             <Tabs.Content value="microphone">
               <VStack>
-                <InputDropdown class="controls" inputs={audioInputs} setSelectedAudioId={setSelectedAudioId} ></InputDropdown>
+                <InputDropdown inputs={audioInputs} setSelectedAudioId={setSelectedAudioId} ></InputDropdown>
                 <Mixer engine={mixer} ></Mixer>
               </VStack>
             </Tabs.Content>
@@ -473,7 +480,6 @@ function App() {
 
         </VStack>) : null}
         <Toaster />
-        {/* <InputDropdown class="controls" inputs={audioInputs} setSelectedAudioId={setSelectedAudioId} isJoined={!isJoined} ></InputDropdown> */}
       </VStack>
     </div>
   );

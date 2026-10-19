@@ -42,8 +42,8 @@ export const Mixer = ({ engine }: { engine: MicAudioEngine | null }) => {
   };
 
   return (
-    <VStack gap={2} align="start">
-      <HStack gap={3}>
+    <VStack gap={2} align="start" w="100%" minW={0} className="Mixer">
+      <HStack gap={3} w="100%">
         <Text
           maxW="400px"
           fontSize="sm"
@@ -59,7 +59,10 @@ export const Mixer = ({ engine }: { engine: MicAudioEngine | null }) => {
           {state.streaming && <Badge colorPalette="green">Broadcasting</Badge>}
         </HStack>
       </HStack>
-      <HStack gap={2} align="start" overflowX="auto" maxW="100%">
+      {/* Definite-width scroller (styled in App.css as .Mixer-strips): strips
+          keep their size and the row scrolls instead of spilling past the
+          tab panel / painted background. */}
+      <HStack gap={2} align="start" minW={0} className="Mixer-strips">
         {labels.map((label, i) => (
           <ChannelStrip key={i} index={i} label={label} channel={state.channels[i]} engine={engine} />
         ))}

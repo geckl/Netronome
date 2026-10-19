@@ -1,14 +1,50 @@
-import { Slider, Switch, Spacer, Stack, VStack, SegmentGroup, } from "@chakra-ui/react"
+import { useState } from "react"
+import { Slider, SegmentGroup, VStack } from "@chakra-ui/react"
 import { Tooltip } from "../ui/tooltip"
 
-export const TempoSlider = ({ setTempo, metronomeMode, setMetronomeMode }: { setTempo: (t: number) => void, metronomeMode: string | null, setMetronomeMode: (s: string | null) => void }) => {
+/**
+ * Controlled tempo slider.
+ * - `tempo` is the committed value synced with the orchestra (also updated
+ *   on server tempo changes, so the thumb always reflects reality).
+ * - `dragValue` keeps the thumb glued to the pointer while dragging;
+ *   Fluid mode commits live, Static mode commits on release.
+ */
+export const TempoSlider = ({
+  tempo,
+  setTempo,
+  metronomeMode,
+  setMetronomeMode,
+}: {
+  tempo: number;
+  setTempo: (t: number) => void;
+  metronomeMode: string | null;
+  setMetronomeMode: (s: string | null) => void;
+}) => {
+    const [dragValue, setDragValue] = useState<number | null>(null);
+    const displayTempo = dragValue ?? tempo;
 
     return (
         <Tooltip content="Fluid Tempo Mode broadcasts a stream of tempo changes">
-            <VStack direction={{ base: "column", md: "row" }}>
-                <Spacer w={150} h={1} />
-                <Slider.Root minW={250} colorPalette={"blue"} min={40} max={200} defaultValue={[60]} onValueChange={(e) => metronomeMode === "Fluid" && setTempo(e.value)} onValueChangeEnd={(e) => metronomeMode !== "Fluid" && setTempo(e.value)} >
-                    <Slider.Label>Tempo:</Slider.Label>
+            <VStack gap={6} align="center">
+                <Slider.Root
+                    minW={280}
+                    colorPalette="cyan"
+                    min={40}
+                    max={200}
+                    value={[displayTempo]}
+                    onValueChange={(e) => {
+                        setDragValue(e.value[0]);
+                        if (metronomeMode === "Fluid") {
+                            setTempo(e.value[0]);
+                        }
+                    }}
+                    onValueChangeEnd={(e) => {
+                        if (metronomeMode !== "Fluid") {
+                            setTempo(e.value[0]);
+                        }
+                    }}
+                >
+                    <Slider.Label>Tempo</Slider.Label>
                     <Slider.Control>
                         <Slider.Track>
                             <Slider.Range />
@@ -29,19 +65,10 @@ export const TempoSlider = ({ setTempo, metronomeMode, setMetronomeMode }: { set
                         </Slider.MarkerGroup>
                     </Slider.Control>
                 </Slider.Root>
-                <SegmentGroup.Root value={metronomeMode} onValueChange={(e) => setMetronomeMode(e.value)}>
+                <SegmentGroup.Root size="sm" value={metronomeMode} onValueChange={(e) => setMetronomeMode(e.value)}>
                     <SegmentGroup.Indicator />
                     <SegmentGroup.Items items={["Off", "Static", "Fluid"]} />
                 </SegmentGroup.Root>
-                {/* <Switch.Root onCheckedChange={(e) => setIsFluidMode(e.checked)} defaultChecked={false} size="md" colorPalette="blue" w={150} >
-                    <Switch.HiddenInput />
-                    <Stack direction={{ base: "row", md: "row" }} alignItems="center" justifyContent="center" gap={2} mt={5}>
-                        <Switch.Label>Fluid Tempo Mode:</Switch.Label>
-                        <Switch.Control>
-                            <Switch.Thumb />
-                        </Switch.Control>
-                    </Stack>
-                </Switch.Root> */}
             </VStack>
         </Tooltip>
     )

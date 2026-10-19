@@ -31,6 +31,7 @@ export const ChannelStrip = ({
   return (
     <VStack
       minW={master ? 90 : 76}
+      flexShrink={0}
       p={2}
       border="1px solid #1b2830"
       borderRadius="md"

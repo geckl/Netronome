@@ -1,92 +1,195 @@
+/* ======================================================================
+   Netronome — Conductor styles
+   Design tokens are shared with apps/Performer/src/styles/App.css so both
+   frontends stay visually consistent (brand.900 panel + brand.500 accent).
+   ====================================================================== */
+
+:root {
+  --ntrm-bg: #00161e;         /* brand.900 */
+  --ntrm-panel: #0d151b;
+  --ntrm-border: #1b2830;
+  --ntrm-accent: #18b1df;     /* brand.500 */
+  --ntrm-accent-soft: #51d6fb; /* brand.300 */
+  --ntrm-text: #e8f6ff;
+  --ntrm-muted: #93b1bf;
+  --ntrm-ink: #0d1f28;        /* dark text on light surfaces */
+}
+
+html,
+body {
+  background-color: var(--ntrm-bg);
+}
+
 .App {
-  text-align: center;
   min-height: 100vh;
-  min-width: 100vw;
-  background-color: #282c34;
+  /* Never force 100vw on the shell: it ignores the vertical scrollbar and
+     lets inner content spill past the painted background. Width stays 100%
+     and horizontal growth lives inside scroll containers (.Mixer-strips). */
+  width: 100%;
+  background-color: var(--ntrm-bg);
+  color: var(--ntrm-text);
+  text-align: center;
+  font-size: 16px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+  overflow-x: clip;
+}
+
+/* ---------------------------------------------------------------- Header */
+
+.App-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px clamp(20px, 4vw, 48px) 6px;
+}
+
+.App-header p {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--ntrm-muted);
+  white-space: nowrap;
+}
+
+.App-nav {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .App-logo {
-  height: 40vmin;
+  height: clamp(40px, 7vmin, 72px);
   pointer-events: none;
 }
 
+/* The white-on-beat fill flashes already read as the visual metronome;
+   a full-size endless spin just distracts. A gentle pulse keeps it alive. */
 @media (prefers-reduced-motion: no-preference) {
   .App-logo {
-    animation: App-logo-spin infinite 20s linear;
+    animation: App-logo-pulse 2.4s ease-in-out infinite;
   }
 }
 
-.App-link {
-  color: #61dafb;
-}
-
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
+@keyframes App-logo-pulse {
+  0%, 100% {
+    opacity: 0.85;
   }
-
-  to {
-    transform: rotate(360deg);
+  50% {
+    opacity: 1;
   }
 }
 
-.controls {
-  margin: 10px;
-}
+/* --------------------------------------------------------------- Buttons */
 
 .Join-button {
-  width: 200px;
-  height: 40px;
-  font-size: large;
-  float: left;
-  display: flex;
+  width: 220px;
+  height: 44px;
+  font-size: 16px;
+  font-weight: 600;
   justify-content: center;
   position: relative;
+  border-radius: 10px;
 }
 
-.waveform-container {
-  /* margin: 0 0 24px 0; */
-  margin: 24px auto;
-  width: 1000px;
-  line-height: 0;
-  -moz-box-shadow: 3px 3px 20px #919191;
-  -webkit-box-shadow: 3px 3px 20px #919191;
-  box-shadow: 3px 3px 20px #919191;
-  overflow: clip;
+/* Transport button: big, obvious */
+.Play-button {
+  margin: 10px;
+  min-width: 170px;
+  height: 48px;
+  font-size: 18px;
+  font-weight: 600;
 }
 
-#zoomview-container {
-  height: 200px;
-  width: 200px;
-  margin: 0;
-  line-height: 0;
+/* -------------------------------------------------- Audio source select */
+
+/* The app shell is dark, but Chakra's light-appearance select trigger is
+   white — pin the shell's own panel colors on the trigger so the value and
+   placeholder never wash out (white-on-white). The open menu stays light
+   (popper renders in its own portal), which reads fine on the dark page. */
+.App .Audio-source [data-part="label"] {
+  color: var(--ntrm-muted);
 }
+
+.App .Audio-source [data-part="trigger"] {
+  background-color: var(--ntrm-panel);
+  color: var(--ntrm-text);
+  border: 1px solid var(--ntrm-border);
+}
+
+.App .Audio-source [data-part="trigger"] [data-part="value-text"] {
+  color: var(--ntrm-text);
+}
+
+/* The open menu keeps Chakra's light surface, but its items inherit the
+   shell's light text color otherwise — pin dark ink on them. */
+.App .Audio-source [data-part="content"] {
+  color: var(--ntrm-ink);
+}
+
+.App .Audio-source [data-part="item"] {
+  color: var(--ntrm-ink);
+}
+
+/* ----------------------------------------------------------- Mic mixer */
+
+/* Tab triggers must be readable on the dark background (the app runs with
+   Chakra's light appearance, so inactive triggers default to dark gray). */
+.App [role="tab"] {
+  color: var(--ntrm-muted);
+}
+
+.App [role="tab"][aria-selected="true"],
+.App [role="tab"][data-selected],
+.App [role="tab"]:hover,
+.App [role="tab"]:focus-visible {
+  color: var(--ntrm-accent-soft);
+}
+
+/* Definite-width column so the strip row can actually scroll instead of
+   overflowing the tab panel and painted background. */
+.Mixer {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Horizontal scroller: channel strips hold their width and the row scrolls
+   inside the tab panel — nothing bleeds past the background. */
+.Mixer-strips {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 2px 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ntrm-accent) transparent;
+}
+
+/* ------------------------------------------------------ Waveform track */
 
 #overview-container {
-  height: 100px;
-  width: 400px;
-
+  /* The container is a flex item inside Chakra's HStack, whose main size is
+     content-based (indefinite). A percentage width cannot resolve against an
+     indefinite flex container and collapses to 0 — which makes Peaks.init()
+     fail with "The overview container must be visible and have non-zero width
+     and height". Viewport units are always definite, so use them instead. */
+  width: min(640px, calc(100vw - 32px));
+  height: 120px;
 }
 
-#scrollbar-container {
-  height: 16px;
-  background-color: #ccc;
-}
-
+/* ------------------------------------------------------------ Spinner */
 
 .spinner-3 {
-  width: 15px;
-  padding: 8px;
+  width: 16px;
+  padding: 3px;
   aspect-ratio: 1;
   border-radius: 50%;
-  background: #25b09b;
-  position: absolute;
+  background: var(--ntrm-accent-soft);
   --_m:
     conic-gradient(#0000 10%, #000),
     linear-gradient(#000 0 0) content-box;
@@ -100,5 +203,18 @@
 @keyframes s3 {
   to {
     transform: rotate(1turn)
+  }
+}
+
+/* --------------------------------------------------------- Responsive */
+
+@media (max-width: 640px) {
+  .App-header {
+    gap: 10px;
+  }
+
+  .App-header p {
+    font-size: 10px;
+    letter-spacing: 0.12em;
   }
 }

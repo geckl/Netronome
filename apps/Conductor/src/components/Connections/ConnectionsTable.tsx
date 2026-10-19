@@ -12,7 +12,7 @@ const ConnectionsTable = ({ members }: { members: Performer[] }) => {
     const tableBody = members.map((member) => {
         let meanLatency: number | null = null;
         if (member.latencies && member.latencies.length) {
-            meanLatency = member.latencies.reduce((a, b) => a + b) / member?.latencies.length
+            meanLatency = Math.round(member.latencies.reduce((a, b) => a + b) / member.latencies.length)
         }
         return (
             <Table.Row key={member.id}>

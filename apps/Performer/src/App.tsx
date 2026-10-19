@@ -29,6 +29,8 @@ function App() {
   // WebRTC receiver for the conductor's live mic/mix + its volume
   const receiverRef = useRef<MicReceiver | null>(null);
   const lastVolume = useRef<number>(0.5);
+  // Mean measured one-way latency from the last sync, for the UI readout
+  const [latencyDisplay, setLatencyDisplay] = useState<number | null>(null);
 
   // console.log(serverOffsets.current);
 
@@ -53,6 +55,13 @@ function App() {
     };
   }, []);
 
+  // Show the mean one-way latency measured during the latest sync
+  function showLatency(latencies: number[]) {
+    setLatencyDisplay(
+      Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length)
+    );
+  }
+
   async function resyncOrchestra() {
     console.log("Resync Orchestra!");
     if (socket) {
@@ -60,6 +69,7 @@ function App() {
         setIsSyncing(true);
         receiverRef.current?.primeAudio(); // user gesture — unlocks autoplay for the WebRTC stream
         const latencies = await synchronize(socket, serverOffsets, serverOffset);
+        showLatency(latencies);
         socket.emit("sync-orchestra", latencies);
         setIsSyncing(false);
         //connectionState.current = "Connected";
@@ -67,6 +77,7 @@ function App() {
         console.error("Resync failed: ", error);
         connectionState.current = "Disconnected";
         setIsSyncing(false);
+        setLatencyDisplay(null);
         resetTransport();
         toast("Failed To Connect: " + error.message);
       }
@@ -124,12 +135,14 @@ function App() {
 
       try {
         const latencies = await synchronize(socket, serverOffsets, serverOffset);
+        showLatency(latencies);
         connectionState.current = "Connected";
         socket.emit("sync-orchestra", latencies);
         setIsSyncing(false);
       } catch (error) {
         connectionState.current = "Disconnected";
         setIsSyncing(false);
+        setLatencyDisplay(null);
         toast("Failed To Connect: " + error.message);
         resetTransport();
         return;
@@ -161,30 +174,47 @@ function App() {
   }
 
   return (
-    <div className="App" style={{ backgroundColor: "#00161e" }}>
-      <div style={{ height: "100vh", width: "100vw", backgroundColor: "#00161e" }} justify-content="top" align-items="center">
-        <header className="App-header">
-          <p>
-            NETRONOME
-          </p>
-          <Logo className="App-logo" fill={colorMode} />
-        </header>
-        <button onClick={() => joinOrchestra()} disabled={isSyncing} className="Join-button">
-          {!isSyncing && JoinButton[connectionState.current]}
-          <div className="spinner-3" hidden={!isSyncing}></div>
-        </button>
-        {connectionState.current === "Connected" &&
-          (<div><div className="Volume-slider">
+    <div className="App">
+      <header className="App-header">
+        <p>
+          NETRONOME
+        </p>
+        <Logo className="App-logo" fill={colorMode} />
+      </header>
+      <button onClick={() => joinOrchestra()} disabled={isSyncing} className="Join-button">
+        {!isSyncing && JoinButton[connectionState.current]}
+        <div className="spinner-3" hidden={!isSyncing}></div>
+      </button>
+      {connectionState.current === "Connected" &&
+        (<div className="Performer-controls">
+          <div className="Volume-slider">
             <label htmlFor="volume">Volume:</label>
             <input type="range" id="volume" min={0} max={1} step={.01} defaultValue={0.5} onChange={onVolumeChange} />
           </div>
-            <div className="Delay-slider">
-              <label htmlFor="delay">Delay: {delayDisplay} ms</label>
-              <input type="range" id="delay" min={-500} max={500} step={1} defaultValue={0} onChange={onDelayChange} onDoubleClick={resetValue}
-              />
-            </div></div>)}
-        <ToastContainer />
-      </div>
+          <div className="Delay-slider">
+            <label htmlFor="delay">
+              Delay:{" "}
+              <span
+                className={
+                  "Delay-value" +
+                  (delayDisplay > 0 ? " positive" : delayDisplay < 0 ? " negative" : "")
+                }
+              >
+                {delayDisplay > 0 ? "+" : ""}{delayDisplay}
+              </span>{" "}
+              ms
+            </label>
+            <input type="range" id="delay" min={-500} max={500} step={1} defaultValue={0} onChange={onDelayChange} onDoubleClick={resetValue}
+            />
+            <span className="Slider-hint">Double-click to reset</span>
+          </div>
+          <div className="Performer-stats">
+            <span className="Stat-chip" title="Mean one-way latency measured during the last sync">
+              Latency ≈ {latencyDisplay === null ? "—" : `${latencyDisplay} ms`}
+            </span>
+          </div>
+        </div>)}
+      <ToastContainer theme="dark" />
     </div>
   );
 }
