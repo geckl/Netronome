@@ -1,107 +1,80 @@
 import { Namespace, Socket } from "socket.io";
-import { Performer } from "./types.js";
-import { io, orc } from "./server.ts"
+import { orc } from "./server.ts"
+import type { ServerClock } from "./core/clock.js";
+import type { SyncService } from "./core/sync-service.js";
+import type { TransportEngine } from "./core/transport.js";
+import type { EnvelopeDispatcher } from "./core/dispatcher.js";
+import { EAGER_ROOM } from "./core/dispatcher.js";
+import type { ConnectionRegistry } from "./core/registry.js";
+import { formatPosition } from "./core/position.js";
 
-const members: Performer[] = [];
-let membersCounter = 0;
-
-const performerRoutes = (performers: Namespace, conductors: Namespace) => {
+const performerRoutes = (performers: Namespace, conductors: Namespace, clock: ServerClock, sync: SyncService, engine: TransportEngine, dispatcher: EnvelopeDispatcher, registry: ConnectionRegistry) => {
 
     // Performer Socket
     performers.on('connection', (socket: Socket) => {
-        const performer: Performer = { id: socket.id, name: `Performer #${membersCounter + 1}`, status: "Disconnected", latencies: [] }
-        members.push(performer);
-        membersCounter++;
-        console.log("performer connected: ", performer);
-
-        const oneWayDelay1 = 300; // Simulated one-way delay for testing
-        
-
-        console.log(`Simulated one-way delay for performer ${performer.id}: ${oneWayDelay1} ms`);
+        const performer = registry.addPerformer(socket.id);
+        console.log("performer connected: ", performer.id);
+        sync.register(socket.id);
 
         if (orc.conductor) {
-            conductors.sockets.get(orc.conductor.id)?.emit("update-members", members);
+            conductors.sockets.get(orc.conductor.id)?.emit("update-members", registry.roster());
         }
-
 
         socket.on("request-join", () => {
             performer.status = "Connecting";
-            conductors.emit("update-members", members);
+            conductors.emit("update-members", registry.roster());
         });
 
         socket.on("calculate-latency", (time: number, cb: (latency: number) => void) => {
-            const latencyPlusOffset = performance.now() - time;
+            sync.recordProbe(socket.id, time);
+            const latencyPlusOffset = clock.now() - time;
             cb(latencyPlusOffset);
         });
 
-        socket.on("calculate-latency-server-1", (targetId: string, time: number, cb: (latencyPlusOffset: number) => void) => {
-            socket.to(targetId).volatile.emit("calculate-latency-server-2", socket.id);
-            const latencyPlusOffset = performance.now() - time;
-            cb(latencyPlusOffset);
+        socket.on("delivery-mode", (mode: "scheduled" | "on-receipt") => {
+            if (mode === "on-receipt") {
+                socket.join(EAGER_ROOM);
+                console.log("performer opted into fire-on-receipt delivery:", socket.id);
+            } else {
+                socket.leave(EAGER_ROOM);
+            }
         });
-
-        socket.on("calculate-latency-client-2", (targetId) => {
-            socket.to(targetId).volatile.emit(`calculate-latency-client-${socket.id}`);
-        });
-
-        // socket.conn.on("heartbeat", () => {
-        //   // called after each round trip of the heartbeat mechanism
-        //   console.log("heartbeat");
-        // });
 
         socket.on("sync-orchestra", (latencies: number[]) => {
-            console.log("sync-orchestra: ");
+            console.log("sync-orchestra: ", performer.id);
             performer.latencies = latencies;
             if (performer.status !== "Connected") {
-                console.log("step 1");
-                performer.status = "Connected"
-                orc.addPerformer(performer);
+                performer.status = "Connected";
                 if (orc.backtrack) {
                     socket.emit('backtrack', orc.backtrack);
                 }
             }
-            // socket.join("ensemble");
             if (orc.conductor) {
-                console.log("step 2");
-                conductors.sockets.get(orc.conductor.id)?.emit("update-members", members);
-                conductors.sockets.get(orc.conductor.id)?.emit("status-update", (isPlaying: boolean, targetTime: number, position: number, tempo: number) => {
-                    if (isPlaying) {
-                        console.log("step 3");
-                        const newTargetTime = targetTime + orc.totalLatency;
-                        const newPosition = position + (orc.totalLatency / 1000);
-                        socket.emit('start', newTargetTime, newPosition, tempo);
-                    }
+                conductors.sockets.get(orc.conductor.id)?.emit("update-members", registry.roster());
+            }
+            // Phase 3: late-joiner catch-up is pure server logic computed from
+            // the engine timeline, riding the SAME envelope contract every app
+            // consumes (unicast transport.start) — no status-update round-trip.
+            const catchUp = engine.catchUp(dispatcher.lead());
+            if (catchUp) {
+                const newPosition = formatPosition(catchUp.positionBeats);
+                console.log(`catch-up start: at=${Math.round(catchUp.at)}ms position=${newPosition} tempo=${catchUp.tempo}`);
+                dispatcher.unicast(socket, "transport.start", catchUp.at, {
+                    position: newPosition,
+                    positionBeats: catchUp.positionBeats,
+                    tempo: catchUp.tempo,
                 });
             }
-            console.log("performer synced to orchestra: ", performer);
+            console.log("performer synced to orchestra: ", performer.id);
         });
 
         socket.on("leave-orchestra", () => {
             if (performer.status === "Connected") {
-                orc.removePerformer(performer);
+                performer.status = "Disconnected";
             }
-            performer.status = "Disconnected"
-            conductors.emit("update-members", members);
-            console.log("user left orchestra: ", performer);
+            conductors.emit("update-members", registry.roster());
+            console.log("user left orchestra: ", performer.id);
         });
-
-        socket.on('connect_error', (err) => {
-            console.log(err.message);
-        });
-
-        // socket.on("rtc-invite", (message) => {
-        //     console.log("rtc-invite: ", message);
-        //     socket.broadcast.emit("rtc-invite", message);
-        // });
-
-        // socket.on("rtc-message", (message) => {
-        //     // console.log("rtc-message: ", message);
-        //     if (message.targetId) {
-        //         socket.to(message.targetId).emit("rtc-message", message);
-        //     } else {
-        //         socket.broadcast.emit("rtc-message", message);
-        //     }
-        // });
 
         // WebRTC signaling from a performer, relayed to the conductor (with the performer id attached)
         socket.on("rtc-invite", () => {
@@ -117,40 +90,28 @@ const performerRoutes = (performers: Namespace, conductors: Namespace) => {
             conductors.emit("rtc-ice", socket.id, candidate);
         });
 
+        // Own connection latency probes feed the dispatcher's measured lead.
+        // The interval dies with the socket (Phase 5: no more timer leak).
+        const pingLoop = setInterval(() => {
+            if (!engine.isPlaying()) return;
+            const start = clock.now();
+            socket.emit("ping", () => {
+                const rtt = clock.now() - start;
+                performer.latencies.push(rtt / 2);
+                performer.latencies.shift();
+                sync.recordRtt(socket.id, rtt);
+            });
+        }, 10_000);
+
         socket.on('disconnect', () => {
-            if (performer.status === "Connected") {
-                orc.removePerformer(performer);
-            }
-            performer.status = "Disconnected"
-            let performerIndex = members.map(c => c.id).indexOf(performer.id)
-            members.splice(performerIndex, 1);
-            conductors.emit("update-members", members);
+            clearInterval(pingLoop);
+            sync.unregister(socket.id);
+            registry.removePerformer(socket.id);
+            conductors.emit("update-members", registry.roster());
             console.log("user disconnected: ", performer.id);
         });
+    });
 
-        // socket.use((event, next) => {
-        //      //setTimeout simulated latency
-        //     setTimeout(() => {
-        //         // console.log("One way delay incoming: ", oneWayDelay1);
-        //         next();
-        //     }, oneWayDelay1);
-        // });
-        //socket.emit("asymmetric-latency", oneWayDelay1);
-        
-
-            setInterval(() => {
-                if (orc.isPlaying) {
-                    const start = performance.now();
-                    socket.emit("ping", () => {
-                        const latency = (performance.now() - start) / 2;
-                        performer.latencies.push(latency);
-                        performer.latencies.shift();
-                        orc.updateLatencies(performer.latencies);
-                    });
-                    // conductors.emit("update-members", memebers);
-                }
-            }, 10000);
-        });
 }
 
 export default performerRoutes;

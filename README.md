@@ -12,21 +12,46 @@ It was built for rehearsing and jamming when musicians can't all be in the same 
 ┌──────────────┐         Socket.IO          ┌───────────────┐         Socket.IO        ┌──────────────┐
 │  Conductor   │ ─────────────────────────▶ │    Backend    │ ────────────────────────▶│  Performer   │
 │ (host machine│  /conductor namespace      │ Express +     │   broadcast to all       │ (any device  │
-│  only)       │ ◀───────────────────────── │  Socket.IO    │ ◀────────────────────────│  on the LAN) │
+│  or REST)    │ ◀───────────────────────── │  Socket.IO    │ ◀────────────────────────│  on the LAN) │
 └──────────────┘                            │   port 3000   │                          └──────────────┘
                                             └───────────────┘
 ```
 
-- The **Backend** is a Node.js server (Express + Socket.IO, port 3000). It serves both web apps and relays every command, clock probe, and audio buffer.
-- The **Conductor** controls tempo, playback, the backing track, and live microphone audio.
-- The **Performers** receive precisely-timestamped commands and schedule their local metronome click so that every beat happens simultaneously on all devices.
+- The **Backend is the single clock & timeline authority** (Node.js, Express 5 + Socket.IO 4, port 3000). It owns the server's monotonic clock, the authoritative transport timeline (tempo calculator), the HTTP NTP endpoint (`GET /api/sync`), and the roster. It also serves both web apps, the mic/mix signaling, and the backing-track relay.
+- The **Conductor** (host machine only, or any local script via `POST /api/transport/*`) commands *when* and *at what position/tempo* things happen — never "now".
+- The **Performers** consume precisely-deadlined `envelope` messages (single generic event, identical frame on Socket.IO and SSE) and schedule their local click so every beat lands at the same absolute instant.
 
 ### Synchronization in a nutshell
 
-1. **Clock sync** — when joining, each client fires 5 timestamped latency probes at the server, trims the outliers, and averages the remaining server-clock offsets.
-2. **Scheduled commands** — the Conductor never says "start now". It says "start at time *T*" (a future timestamp on the server clock). Each performer converts *T* into its own clock domain (server offset ± one-way latency) and schedules its Tone.js transport to fire exactly then. Network jitter on delivery doesn't cause drift — the beat was scheduled ahead of time.
-3. **Orchestra latency compensation** — the server tracks every performer's measured latency and keeps a latency budget (`ceil(maxLatency × 1.5)`). This budget pads tempo changes and late-joiner catch-up starts so nobody is left chasing the beat.
-4. **Ongoing monitoring** — while the orchestra is playing, the server re-pings every performer every 10 seconds and updates the latency budget.
+1. **HTTP NTP clock sync** — clients probe `GET /api/sync` (4 timestamps per probe, server dwell measured, no magic fudges). The background loop feeds a rolling window; a robust Theil–Sen regression fits the **clock drift** (quartz spread, tens of ppm), so `serverNow()` stays right over minutes, not just seconds. A server restart (new `bootId`) clears the window automatically.
+2. **Deadline-carrying envelopes** — every transport/beat message is `{ seq, type, at, lead, data }`, where `at` is the exact server-clock instant it takes effect and `lead` is the measured emission margin (minLead 250 ms + max one-way latency). Clients convert `at` into their own AudioContext time via `client.localAudioTime(at, ctx)` — including a calibrated **ctx-vs-monotonic clock ratio** for the audio hardware clock. `seq` numbers are assigned at commit (build) time: they are unique per boot and stable across delivery copies, but wire arrival can invert across types when emission windows interleave — consumers dedupe on exact replays (the bundled SDK keeps a bounded seen-seq window), never on a `< lastSeq` watermark.
+3. **Envelopes land before their deadlines** — the dispatcher schedules emission at `at − lead` so even the slowest measured connection receives the message before it takes effect. Fluid-tempo drags are coalesced (`NETRONOME_TEMPO_COALESCE_MS`, default 40 ms ⇒ ≤ 25 envelopes/s; `0` disables): the timeline stays exact and the newest tempo always arrives before it applies — only the envelope count shrinks.
+4. **Late joiner catch-up is pure server logic** — joining mid-play, the server computes the conductor's current timeline position and unicasts a `transport.start` envelope for the next commit window. No client-side arithmetic anywhere.
+5. **Reconnect survivability** — the SDK re-joins the roster, re-bursts clock probes, re-reads `GET /api/state`, and fires `onResync(state, reason)` automatically on socket reconnects and on detected restarts (`bootId` change).
+6. **Ongoing monitoring** — while the orchestra plays, the server re-pings performers every 10 s to keep the latency estimates (and thus `lead`) fresh.
+
+The full wire contract (envelope shapes, REST endpoints, delivery modes) is documented in **`docs/HTTP-API.md`**.
+
+### Netronome client SDK (`@netronome/client`)
+
+```js
+const client = new NetronomeClient({ url, role: "performer" });
+await client.connect();
+client.on("transport.start", (env) => startTransport(client.localAudioTime(env.at, audioCtx)));
+client.on("beat", (env) => scheduleClick(client.localAudioTime(env.at, audioCtx), env.data.index));
+```
+
+The SDK ships the clock sync + drift model, envelope consumption with replay protection, the AudioContext rate calibration, the reconnect policy, and optional `deliveryMode: "on-receipt"` (see the wire docs) — apps only decide *what* to play.
+
+### Environment knobs
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `PORT` | `3000` | Server port |
+| `NETRONOME_CORS_ORIGIN` | reflect any origin | Restrict API/socket origins (comma-separated) |
+| `NETRONOME_CLOCK_STATS` | off | Verbose clock/latency statistics log |
+| `NETRONOME_TEMPO_COALESCE_MS` | `40` | Fluid-tempo envelope rate cap (0 disables) |
+| `NETRONOME_SKIP_OPEN` | off | Don't auto-launch the Conductor UI |
 
 ---
 
@@ -51,7 +76,7 @@ The Conductor app lives at **`/conductor`** on the backend and is restricted to 
 
 ### Transport Controls
 
-- **Play / Stop** — starts and stops everyone in sync. Starting emits a target timestamp ~500 ms in the future (padded server-side by an additional 1 s lead), and every performer begins at the exact same instant from the same musical position (e.g., resuming mid-bar after a stop).
+- **Play / Stop** — starts and stops everyone in sync. Starting emits a target timestamp ~500 ms in the future (the server commits with a minLead clamp of 250 ms), and every performer begins at the exact same instant from the same musical position (e.g., resuming mid-bar after a stop).
 - Synchronized **seek**: click anywhere on the backing-track waveform and the whole orchestra jumps there together, keeping bar/beat position consistent for late arrivals.
 
 ### Backing Track
@@ -96,7 +121,7 @@ The Performer app is served at the backend's root (**`/`**) and is designed for 
 
 ### Automatic Catch-up
 
-- Performers who join **while the orchestra is already playing** don't just join a stopped metronome: the server asks the conductor for the current playback state and sends a start command padded with the latency budget, so the newcomer begins at the correct position **mid-piece**, in phase with everyone else.
+- Performers who join **while the orchestra is already playing** don't just join a stopped metronome: the server computes the current timeline position itself and unicasts a `transport.start` envelope for the next commit window, so the newcomer begins at the correct position **mid-piece**, in phase with everyone else.
 - New performers also automatically receive the current backing track.
 
 ### Playback
@@ -171,4 +196,3 @@ Netronome/
 - Metronome clicks are fixed to **quarter notes** — there is no time-signature meter selection yet.
 - The Conductor is limited to one instance and, by design, only the machine running Netronome can use Conductor mode.
 - All devices must be reachable from the server over the local network (Socket.IO/WebSocket on port 3000).
-- An experimental WebRTC-based latency layer (measuring one-way/asymmetric latency via data channels) exists in the code but is currently disabled.

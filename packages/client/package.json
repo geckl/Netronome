@@ -1,0 +1,36 @@
+{
+  "name": "@netronome/client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Netronome client SDK — HTTP NTP clock sync plus transport.* envelope consumption for any front end.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "verify": "tsx scripts/client-check.ts"
+  },
+  "peerDependencies": {
+    "socket.io-client": ">=4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.30",
+    "socket.io-client": "^4.8.1",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}

@@ -1,88 +1,41 @@
-import { Socket } from "socket.io-client";
-import { DeviceType } from "./types";
 import * as Tone from "tone";
-import React, { RefObject } from "react";
 
-// Returns a Promise that resolves after "ms" Milliseconds
-export const timer = ms => new Promise(res => setTimeout(res, ms));
+/**
+ * util — Conductor helpers that are not synchronization.
+ *
+ * The legacy `convertTime` / `synchronize` (and their +500 fudges) are gone:
+ * all deadlines now flow through the @netronome/client SDK.
+ */
+
+/** Returns a Promise that resolves after "ms" Milliseconds. */
+// eslint-disable-next-line
+export const timer = (ms: any) => new Promise((res) => setTimeout(res, ms));
 
 export async function getDevices(setAudioInputs: (inputs: MediaDeviceInfo[]) => void) {
-    const inputs: MediaDeviceInfo[] = [];
-    console.log(navigator.mediaDevices);
-    await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
-    if (!navigator.mediaDevices?.enumerateDevices) {
-      console.log("enumerateDevices() not supported.");
-    } else {
-      // List cameras and microphones.
-      navigator.mediaDevices
-        .enumerateDevices()
-        .then((devices) => {
-          devices.forEach((device) => {
-            //console.log(`${device.kind}: ${device.label} id = ${device.deviceId}`);
-            if (device.kind == "audioinput") {
-              inputs.push(device);
-            }
-          });
-          setAudioInputs(inputs);
-        })
-        .catch((err) => {
-          console.error(`${err.name}: ${err.message}`);
-        });
-    }
-  }
-
-export const playAudio = (audioData: any) => {
-  var newData = audioData.split(";");
-  newData[0] = "data:audio/ogg;";
-  newData = newData[0] + newData[1];
-
-  var audio = new Audio(newData);
-  if (!audio || document.hidden) {
-    return;
-  }
-  audio.play();
-}
-
-export const convertTime = (destination: DeviceType, time: number, serverOffset: number) => {
-  if (destination === "Server") {
-    const serverTime = time + serverOffset;
-    return serverTime;
-  } else if (destination === "Client") {
-    const clientTime = time - serverOffset;
-    return clientTime;
+  const inputs: MediaDeviceInfo[] = [];
+  console.log(navigator.mediaDevices);
+  await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+  if (!navigator.mediaDevices?.enumerateDevices) {
+    console.log("enumerateDevices() not supported.");
   } else {
-    throw Error(`Not a valid conversion (options are "server" or "client"`);
+    // List cameras and microphones.
+    navigator.mediaDevices
+      .enumerateDevices()
+      .then((devices) => {
+        devices.forEach((device) => {
+          if (device.kind == "audioinput") {
+            inputs.push(device);
+          }
+        });
+        setAudioInputs(inputs);
+      })
+      .catch((err) => {
+        console.error(`${err.name}: ${err.message}`);
+      });
   }
-}
-
-export const toBase64 = file => new Promise((resolve, reject) => {
-  const reader = new FileReader();
-  reader.readAsDataURL(file);
-  reader.onload = () => resolve(reader.result);
-  reader.onerror = reject;
-});
-
-export async function synchronize(socket: Socket, serverOffset: RefObject<number>): Promise<number[]> {
-  let latencies: number[] = [];
-  let serverOffsets: number[] = [];
-  for (let i = 0; i < 5; i++) {
-    const start = window.performance.now() + 500;
-    socket.volatile.emit("calculate-latency", start, (latencyPlusOffset: number) => {
-      const latency = (window.performance.now() + 500) - start;
-      latencies.push(latency / 2);
-      serverOffsets.push((latencyPlusOffset - (latency / 2)));
-    });
-    await timer(500);
-  }
-  let middleOffsets = serverOffsets.sort().slice(1, -1);
-  let meanOffset = Math.round(middleOffsets.reduce((a, b) => a + b) / (middleOffsets.length));
-  console.log("Mean Offset: ", meanOffset);
-  serverOffset.current = meanOffset;
-  return latencies;
 }
 
 export function resetTransport() {
   Tone.getTransport().stop();
   Tone.getTransport().cancel();
-  Tone.getTransport().dispose();
 }

@@ -1,58 +1,74 @@
 import { Namespace, Socket } from "socket.io";
 import { Performer } from "./types.js";
 import { orc, ipAddress } from "./server.ts"
+import type { ServerClock } from "./core/clock.js";
+import type { SyncService } from "./core/sync-service.js";
+import type { TransportEngine } from "./core/transport.js";
+import type { EnvelopeDispatcher } from "./core/dispatcher.js";
+import { EAGER_ROOM } from "./core/dispatcher.js";
+import type { ConnectionRegistry } from "./core/registry.js";
+import { formatPosition } from "./core/position.js";
 
-
-
-const conductorRoutes = (conductors: Namespace, performers: Namespace) => {
+const conductorRoutes = (conductors: Namespace, performers: Namespace, clock: ServerClock, sync: SyncService, engine: TransportEngine, dispatcher: EnvelopeDispatcher, registry: ConnectionRegistry) => {
 
     // Conductor Socket
     conductors.on('connection', (socket: Socket) => {
-
-        // if (orc.conductor) {
-        //     console.log("A conductor is already connected!");
-        //     socket.emit("error", "A conductor is already connected! Disconnecting...");
-        //     socket.disconnect(true);
-        //     return;
-        // }
-
         console.log("conductor joined!");
-        const conductor: Performer = { id: socket.id, name: "Conductor", status: "Disconnected", latencies: [] }
+        sync.register(socket.id);
+        const conductor: Performer = { id: socket.id, name: "Conductor", status: "Disconnected", latencies: [] };
         socket.emit("server-ip", ipAddress);
-
 
         socket.on("request-join", () => {
             conductor.status = "Connecting";
         });
 
         socket.on("calculate-latency", (time: number, cb: (latency: number) => void) => {
-            const latencyPlusOffset = performance.now() - time;
-            //const latencyPlusOffset = Date.now() - time;
+            sync.recordProbe(socket.id, time);
+            const latencyPlusOffset = clock.now() - time;
             cb(latencyPlusOffset);
         });
 
-        // socket.conn.on("heartbeat", () => {
-        //   // called after each round trip of the heartbeat mechanism
-        //   console.log("heartbeat");
-        // });
+        socket.on("delivery-mode", (mode: "scheduled" | "on-receipt") => {
+            if (mode === "on-receipt") {
+                socket.join(EAGER_ROOM);
+                console.log("conductor opted into fire-on-receipt delivery:", socket.id);
+            } else {
+                socket.leave(EAGER_ROOM);
+            }
+        });
 
         socket.on("conductor-sync-orchestra", (latencies: number[], cb: (bool: boolean) => void) => {
-
-            if(!orc.conductor) {
+            // Single-conductor rule, enforced in one place (registry).
+            if (!registry.claimConductor(conductor.id)) {
+                console.log("A conductor is already connected!");
+                return cb(false);
+            }
+            if (!orc.conductor) {
                 orc.conductor = conductor;
             } else if (orc.conductor.id !== conductor.id) {
                 console.log("A conductor is already connected!");
-                //socket.emit("error", "A conductor is already connected!");
                 return cb(false);
             }
-            
+
             conductor.latencies = latencies;
             conductor.status = "Connected"
-            // orc.addPerformer(conductor);
-            // conductors.emit("update-members", members);
-            socket.emit("server-update", orc.tempo, orc.isPlaying,);
+            // The engine is the transport truth; the Conductor UI paints its
+            // baseline from this snapshot on join.
+            socket.emit("server-update", engine.currentTempo(), engine.isPlaying());
             if (orc.backtrack) {
                 socket.emit('server-backtrack', orc.backtrack);
+            }
+            // Phase 3: a conductor joining mid-play catches up on the same
+            // envelope contract as every performer (unicast transport.start).
+            const catchUp = engine.catchUp(dispatcher.lead());
+            if (catchUp) {
+                const newPosition = formatPosition(catchUp.positionBeats);
+                console.log(`conductor catch-up start: at=${Math.round(catchUp.at)}ms position=${newPosition} tempo=${catchUp.tempo}`);
+                dispatcher.unicast(socket, "transport.start", catchUp.at, {
+                    position: newPosition,
+                    positionBeats: catchUp.positionBeats,
+                    tempo: catchUp.tempo,
+                });
             }
             console.log("conductor synced to orchestra: ", conductor);
             return cb(true);
@@ -60,26 +76,25 @@ const conductorRoutes = (conductors: Namespace, performers: Namespace) => {
 
         socket.on('conductor-start', (targetTime: number, position: string, cb: (newTargetTime: number) => void) => {
             console.log('conductor-start');
-            const newTargetTime = targetTime + 1000;
-            //const newTargetTime = targetTime + orc.totalLatency ;
-            performers.emit('start', newTargetTime, position, orc.tempo);
+            // Phase 2: the engine owns the deadline — clamped to now + minLead;
+            // the legacy blind fast-forward (+1000ms) bump is retired.
+            const newTargetTime = engine.start(targetTime, position);
             cb(newTargetTime);
-            orc.isPlaying = true;
         });
 
         socket.on('conductor-stop', () => {
             console.log('conductor-stop');
-            performers.emit('stop');
-            orc.isPlaying = false;
+            // Freezes the exact server-side position; cancels any pending start.
+            const committed = engine.stop();
+            console.log(`stopped at ${Math.round(committed.at)}ms, frozen at ${committed.positionBeats.toFixed(3)} beats`);
         });
 
-        socket.on('conductor-change-tempo', (targetTime: number, position: string, newTempo: number, cb: (newTargetTime: number) => void) => {
+        socket.on('conductor-change-tempo', (targetTime: number, _position: string, newTempo: number, cb: (newTargetTime: number) => void) => {
             console.log("change-tempo: ", newTempo);
-            //const newTargetTime = targetTime + 1000;
-            const newTargetTime = targetTime + orc.totalLatency;
-            performers.emit('change-tempo', newTargetTime, position, newTempo);
+            // Engine commits the tempo on the timeline (position-continuous);
+            // the ratcheting totalLatency budget is no longer involved.
+            const newTargetTime = engine.tempo(targetTime, newTempo);
             cb(newTargetTime);
-            orc.tempo = newTempo;
         })
 
         socket.on('conductor-backtrack', (backtrack: ArrayBuffer | null) => {
@@ -110,8 +125,8 @@ const conductorRoutes = (conductors: Namespace, performers: Namespace) => {
             performers.to(targetId).emit('rtc-ice', socket.id, candidate);
         });
 
-        // Legacy chunked stream: optionally targeted at specific performers.
-        // Undefined targets = legacy behaviour (relay to everyone).
+        // Chunked stream: optionally targeted at specific performers.
+        // Undefined targets = relay to everyone.
         socket.on('audioStream', (audioData: string | ArrayBuffer | null, targets?: string[]) => {
             if (Array.isArray(targets)) {
                 targets.forEach((id) => performers.to(id).volatile.emit('audioStream', audioData));
@@ -121,6 +136,8 @@ const conductorRoutes = (conductors: Namespace, performers: Namespace) => {
         });
 
         socket.on('disconnect', () => {
+            sync.unregister(socket.id);
+            registry.releaseConductor(socket.id);
             if (orc.conductor && orc.conductor.id === conductor.id) {
                 orc.conductor = null;
                 conductor.status = "Disconnected";

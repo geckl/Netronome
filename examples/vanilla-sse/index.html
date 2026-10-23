@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Netronome — vanilla SSE client</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body {
+    margin: 0; min-height: 100vh;
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    background: #0d1117; color: #e6edf3;
+    display: grid; place-items: center;
+  }
+  main { width: min(680px, 92vw); padding: 32px 0; }
+  h1 { font-size: 18px; font-weight: 600; margin: 0 0 4px; color: #7ee787; }
+  p.sub { margin: 0 0 20px; color: #8b949e; font-size: 13px; }
+  .blinker {
+    width: 180px; height: 180px; border-radius: 50%;
+    margin: 8px auto 20px; background: #21262d;
+    box-shadow: inset 0 0 0 2px #30363d;
+    transition: background 60ms linear;
+  }
+  .blinker.on { background: #7ee787; box-shadow: 0 0 48px #7ee78788; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 18px; font-size: 13px; }
+  .grid dt { color: #8b949e; }
+  .grid dd { margin: 0; font-variant-numeric: tabular-nums; }
+  .row { margin-top: 18px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  button {
+    background: #21262d; color: #e6edf3; border: 1px solid #30363d;
+    border-radius: 6px; padding: 7px 14px; font-size: 13px; cursor: pointer;
+  }
+  button:hover { border-color: #7ee787; }
+  input[type=number] {
+    background: #161b22; color: #e6edf3; border: 1px solid #30363d;
+    border-radius: 6px; padding: 6px 8px; width: 5ch; font-size: 13px;
+  }
+  .banner { margin-top: 14px; font-size: 13px; min-height: 18px; color: #ffa657; }
+  .log { display: block; margin-top: 12px; max-height: 150px; overflow: auto;
+        font: 11px ui-monospace, SFMono-Regular, monospace; color: #8b949e; }
+  a { color: #7ee787; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Netronome — vanilla SSE client</h1>
+  <p class="sub">
+    No build step, no dependencies: plain <code>fetch</code> + <code>EventSource</code> +
+    Web Audio over the HTTP contract only
+    (<a href="/api/state">/api/state</a>, <a href="/api/stream">/api/stream</a>,
+    <a href="/api/sync">/api/sync</a>). No socket.io, no SDK, no math beyond beat counting.
+  </p>
+
+  <div id="blinker" class="blinker"></div>
+
+  <dl class="grid">
+    <dt>stream</dt><dd id="conn">connecting…</dd>
+    <dt>transport</dt><dd id="playing">?</dd>
+    <dt>tempo</dt><dd id="tempo">?</dd>
+    <dt>position</dt><dd id="position">?</dd>
+    <dt>clock skew (bridged)</dt><dd id="offset">measuring…</dd>
+    <dt>probe rtt</dt><dd id="rtt">measuring…</dd>
+    <dt>last envelope seq</dt><dd id="seq">—</dd>
+    <dt>server boot</dt><dd id="boot">—</dd>
+  </dl>
+
+  <div class="row">
+    <label><input type="checkbox" id="clickOn" /> click</label>
+    <button id="btnStart">Start</button>
+    <button id="btnStop">Stop</button>
+    <button id="btnTempo">Set tempo</button>
+    <input type="number" id="bpm" value="90" min="20" max="300" />
+  </div>
+  <div id="banner" class="banner"></div>
+  <div id="log" class="log"></div>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

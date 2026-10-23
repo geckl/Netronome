@@ -23,8 +23,6 @@ export const JoinButton = {
    'Connected': "Disconnect"
 };
 
-export type DeviceType = "Client" | "Server";
-
 export type TempoMode = "Static" | "Fluid";
 
 export type NetronomePlaybackState = PlaybackState | "loading";

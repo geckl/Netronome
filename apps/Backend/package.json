@@ -15,7 +15,9 @@
     "typescript": "^5.8.3"
   },
   "scripts": {
-    "start": "tsx src/server.ts"
+    "start": "tsx src/server.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
   "pkg": {
     "scripts": "src/server.ts",
@@ -28,6 +30,8 @@
   "bin": "src/server.ts",
   "type": "module",
   "devDependencies": {
-    "@types/express": "^5.0.2"
+    "@types/express": "^5.0.2",
+    "socket.io-client": "^4.8.1",
+    "vitest": "^3.2.4"
   }
 }
