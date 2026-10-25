@@ -1,4 +1,3 @@
-import React from "react";
 import { Button, HStack, Text, Slider, VStack } from "@chakra-ui/react";
 import { ChannelState, MicAudioEngine } from "../../audio/MicAudioEngine";
 import Meter from "./Meter";

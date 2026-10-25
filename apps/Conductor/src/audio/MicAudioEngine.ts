@@ -18,7 +18,7 @@
  *   faders/pan/mute/master all shape what performers hear.
  */
 
-import { Socket } from "socket.io-client";
+import type { Socket } from "@netronome/client";
 
 export interface ChannelState {
   /** Fader value, 0..1 */
@@ -212,7 +212,7 @@ export class MicAudioEngine {
     source.connect(splitter);
 
     // Defaults: unity faders, centered pans
-    const channels: ChannelState[] = strips.map((_, i) => ({
+    const channels: ChannelState[] = strips.map(() => ({
       gain: 1,
       pan: 0,
       muted: false,

@@ -1,4 +1,4 @@
-import type { Socket } from "socket.io-client";
+import type { Socket } from "@netronome/client";
 import type { Performer } from "./types";
 
 /**

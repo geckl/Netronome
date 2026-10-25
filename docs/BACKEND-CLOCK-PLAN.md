@@ -487,6 +487,17 @@ What this deletes from the apps (the actual payoff of the SDK):
 >   (roster → `ConnectionRegistry`, latency → `SyncService`, transport truth → engine). The performer
 >   ping loop is engine-driven and cleared on disconnect. `/api/state` keeps `engineMode: true` as a
 >   documented constant for older third-party parsers.
+> - **App hardening (late, user-reported join crash)**: the CRA tsconfigs' `include` pointed at
+>   `apps/**/*` (stale after the repo restructure) — a no-op include list, so the app sources had never
+>   actually been type-checked; babel-only transpilation let three real bugs through: `rawContext()` was
+>   called as a method while Tone 15 exposes it as a getter property (the joining crash), the Conductor's
+>   `tempoValueRef` was used but never declared (a latent ReferenceError on the next tempo update), and
+>   ~80 latent type errors existed across both apps. Fixed: `include: ["src"]` + `jsx: react-jsx`
+>   (matching what react-scripts forces at build), `@types/react-dom` added, a `react-app-env.d.ts` for
+>   asset modules, the backtrack player adapter typed structurally (peaks' PlayerAdapter isn't exported —
+>   emitter shape recovered via `PeaksOptions["player"]`), sockets typed via the SDK's `Socket` re-export
+>   (avoids the yarn-link dual-install type clash), and Chakra v3 slider/stack props corrected. The
+>   actual built Conductor UI was verified in a browser: join → claim → Play → Stop, all clean.
 > - **Docs**: README "How It Works" rewritten (clock authority, envelope contract, SDK section, env
 >   knobs incl. `NETRONOME_TEMPO_COALESCE_MS`); `docs/HTTP-API.md` dropped the 501/legacy paragraph and
 >   gained the "Dispatcher behavior guarantees" section (coalescing, delivery bias, bootId regime).

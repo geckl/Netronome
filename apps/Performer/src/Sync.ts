@@ -79,7 +79,7 @@ export class PerformerSync {
     Tone.setContext(toneContext, true);
     Tone.getTransport().bpm.value = 60;
     await Tone.start();
-    const raw = Tone.getContext().rawContext();
+    const raw = Tone.getContext().rawContext;
     this.clickGain = raw.createGain();
     this.clickGain.gain.value = this.clickVolume;
     this.clickGain.connect(raw.destination);
@@ -112,9 +112,15 @@ export class PerformerSync {
   private onStart(env: Envelope<TransportStartData>): void {
     const data = env.data;
     const transport = Tone.getTransport();
-    transport.stop(); // fresh start: restarts kill any pending local scheduling
-    transport.cancel();
-    const ctx = Tone.getContext().rawContext();
+    // Cancel everything pending, then rearm at the envelope's deadline. The
+    // stop must be addressed at `Tone.immediate()` (raw ctx time): an
+    // argumentless stop() is scheduled at `Transport.now()` = ctx time +
+    // lookAhead (~500 ms in the future), which lands AFTER the armed start
+    // (dueSec ≈ +250 ms). Tone then processes the stale "stopped" state
+    // change ~250 ms later, killing the transport right after it starts.
+    transport.stop(Tone.immediate());
+    transport.cancel(); // fresh start: restarts kill any pending local scheduling
+    const ctx = Tone.getContext().rawContext;
     const dueSec = this.client.localAudioTime(env.at, ctx);
     const now = Tone.immediate();
     const tempo = data.tempo && data.tempo > 0 ? data.tempo : transport.bpm.value;
@@ -133,7 +139,9 @@ export class PerformerSync {
 
   private onStop(): void {
     const transport = Tone.getTransport();
-    transport.stop();
+    // Address the stop at raw ctx time so it lands NOW (and cancels any still
+    // armed start); see the comment in onStart about the +lookAhead trap.
+    transport.stop(Tone.immediate());
     transport.cancel();
     this.cancelScheduledClicks();
     if (this.pendingSeekTimer !== null) {
@@ -143,14 +151,14 @@ export class PerformerSync {
   }
 
   private onTempo(env: Envelope<TransportTempoData>): void {
-    const ctx = Tone.getContext().rawContext();
+    const ctx = Tone.getContext().rawContext;
     const dueSec = this.client.localAudioTime(env.at, ctx);
     const now = Tone.immediate();
     Tone.getTransport().bpm.setValueAtTime(env.data.bpm, Math.max(dueSec, now));
   }
 
   private onSeek(env: Envelope<TransportSeekData>): void {
-    const ctx = Tone.getContext().rawContext();
+    const ctx = Tone.getContext().rawContext;
     const dueSec = this.client.localAudioTime(env.at, ctx);
     const now = Tone.immediate();
     if (dueSec <= now + 0.002) {
@@ -167,7 +175,7 @@ export class PerformerSync {
 
   private scheduleBeat(atServerMs: number): void {
     if (!this.woodblock || !this.clickGain) return;
-    const ctx = Tone.getContext().rawContext();
+    const ctx = Tone.getContext().rawContext;
     const localSec = this.client.localAudioTime(atServerMs, ctx) + this.delayMs / 1000;
     const source = ctx.createBufferSource();
     source.buffer = this.woodblock;

@@ -7,7 +7,6 @@ import {
   Portal,
   HStack,
 } from "@chakra-ui/react"
-import React from "react"
 import ConnectionsTable from "./ConnectionsTable"
 import { Performer } from "../../types"
 

@@ -1,5 +1,5 @@
 import * as Tone from "tone";
-import type { Socket } from "socket.io-client";
+import type { Socket } from "@netronome/client";
 import type { RefObject } from "react";
 import { playAudio } from "./util";
 
@@ -18,12 +18,10 @@ var backtrackBufferTotal: ArrayBuffer | null = null;
 // listen for events emitted by the server
 export const initialSocketEvents = (
   socketInstance: Socket,
-  setSocket: (socket: Socket | null) => void,
   connectionState: RefObject<string>,
 ) => {
   socketInstance.on("connect", () => {
     console.log("Connected to server");
-    setSocket(socketInstance);
     socketInstance.emit("rtc-invite"); // invite the conductor's mic/mix early
   });
 
@@ -34,13 +32,11 @@ export const initialSocketEvents = (
   socketInstance.on("reconnect", function () {
     console.log("you have been reconnected!");
     connectionState.current = "Connected";
-    setSocket(socketInstance);
   });
 
   socketInstance.on("disconnect", function () {
     socketInstance.emit("rtc-message", { type: "bye", senderId: socketInstance.id });
     connectionState.current = "Disconnected";
-    setSocket(null);
   });
 };
 

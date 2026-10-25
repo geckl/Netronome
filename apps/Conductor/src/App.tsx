@@ -3,8 +3,6 @@ import "./styles/App.css";
 import * as Tone from "tone";
 import { useState, useEffect, useRef } from "react";
 import { NetronomeClient } from "@netronome/client";
-// import InputDropdown from './components/Inputs';
-import React from "react";
 import { ConnectionStatus, JoinButton, NetronomePlaybackState, Performer } from "./types";
 import { Button, CloseButton, HStack, Spacer, VStack, Tabs } from "@chakra-ui/react";
 import ConnectionsDrawer from "./components/Connections/ConnectionsDrawer";
@@ -14,7 +12,7 @@ import { BacktrackButton } from "./components/Backtrack/BacktrackButton";
 import { VolumeSlider } from "./components/Volume/VolumeSlider";
 import SharePopup from "./components/Connections/SharePopup";
 import { initialSocketEvents } from "./SocketIO";
-import Peaks, { PeaksInstance } from "peaks.js";
+import Peaks, { PeaksInstance, type PeaksOptions } from "peaks.js";
 import { Toaster, toaster } from "./components/ui/toaster";
 import { TbMetronome } from "react-icons/tb";
 import { GiSoundWaves } from "react-icons/gi";
@@ -24,11 +22,29 @@ import { MicAudioEngine } from "./audio/MicAudioEngine";
 import Mixer from "./components/Mixer/Mixer";
 import { MicStreamBroadcaster } from "./rtc/MicStreamBroadcaster";
 import { ConductorSync } from "./ConductorSync";
-import type { Socket } from "socket.io-client";
+import type { Socket } from "@netronome/client";
 
 var peaks: PeaksInstance | undefined = undefined;
 var updatePlayhead: number | undefined = undefined;
 var backtrack: Tone.Player | null = null;
+
+/** peaks.js player adapter — `Peaks.PlayerAdapter` itself is not exported, so
+ * the exact emitter shape is recovered from the exported options type. */
+type PeaksEmitter = Parameters<NonNullable<PeaksOptions["player"]>["init"]>[0];
+interface BacktrackPlayer {
+  externalPlayer: Tone.Player | null;
+  eventEmitter: PeaksEmitter | null;
+  init: (eventEmitter: PeaksEmitter) => Promise<void>;
+  destroy: () => void;
+  setSource: (opts: { webAudio: { audioBuffer: AudioBuffer } }) => Promise<void>;
+  play: () => Promise<void>;
+  pause: () => void;
+  isPlaying: () => boolean;
+  seek: (time: number) => void;
+  isSeeking: () => boolean;
+  getCurrentTime: () => number;
+  getDuration: () => number;
+}
 
 function App() {
   const [connectionState, setConnectionState] = useState<ConnectionStatus>("Disconnected");
@@ -39,9 +55,15 @@ function App() {
   const [colorMode, setColorMode] = useState<string>("#61DAFB");
   const volume = useRef<Tone.Gain | null>(null);
   const [tempoValue, setTempoValue] = useState<number>(60);
+  const tempoValueRef = useRef<number>(60); // mirror for envelope callbacks
   const [state, setState] = useState<NetronomePlaybackState>("stopped");
   const [metronomeMode, setMetronomeMode] = useState<string | null>("Static");
   const stateRef = useRef<NetronomePlaybackState>("stopped");
+  // The Tone context the playback-state events are armed for. unlockAudio()
+  // swaps in a fresh context on every join, so listeners must (re-)attach
+  // exactly once per context — per-context transports, and blind re-adding
+  // would stack duplicate handlers on the live one.
+  const transportEventsContext = useRef<ReturnType<typeof Tone.getContext> | null>(null);
 
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
   const [selectedAudioId, setSelectedAudioId] = useState<string | null>(null);
@@ -177,9 +199,13 @@ function App() {
       await sync!.unlockAudio();
       volume.current = sync!.getVolumeGain();
 
-      Tone.getTransport().on("start", () => setPlaybackState("started"));
-      Tone.getTransport().on("stop", () => setPlaybackState("stopped"));
-      Tone.getTransport().on("pause", () => setPlaybackState("paused"));
+      // Arm the transport-state events for THIS context (once per join).
+      if (transportEventsContext.current !== Tone.getContext()) {
+        transportEventsContext.current = Tone.getContext();
+        Tone.getTransport().on("start", () => setPlaybackState("started"));
+        Tone.getTransport().on("stop", () => setPlaybackState("stopped"));
+        Tone.getTransport().on("pause", () => setPlaybackState("paused"));
+      }
 
       // 2. connect + HTTP NTP clock sync (replaces the 5x handshake dance)
       await client.connect();
@@ -266,11 +292,11 @@ function App() {
         .then((audioBuffer) => {
           backtrack = new Tone.Player(audioBuffer).sync().start(0).toDestination();
 
-          const player = {
+          const player: BacktrackPlayer = {
             externalPlayer: backtrack,
             eventEmitter: null,
 
-            init: function (eventEmitter) {
+            init: function (eventEmitter: PeaksEmitter) {
               console.log("new backtrack!");
               this.eventEmitter = eventEmitter;
               Tone.getTransport().position = "0:0:0";
@@ -295,34 +321,34 @@ function App() {
               this.eventEmitter = null;
             },
 
-            setSource: function (opts) {
+            setSource: function (opts: { webAudio: { audioBuffer: AudioBuffer } }) {
               if (this.isPlaying()) {
                 this.pause();
               }
               // Update the Tone.js Player object with the new AudioBuffer
-              this.externalPlayer.buffer.set(opts.webAudio.audioBuffer);
+              this.externalPlayer?.buffer.set(opts.webAudio.audioBuffer);
               return Promise.resolve();
             },
 
             play: async function () {
-              this.eventEmitter.emit("player.playing", this.getCurrentTime());
+              this.eventEmitter?.emit("player.playing", this.getCurrentTime());
               return Promise.resolve();
             },
 
             pause: function () {
-              this.eventEmitter.emit("player.pause", this.getCurrentTime());
+              this.eventEmitter?.emit("player.pause", this.getCurrentTime());
             },
 
             isPlaying: function () {
               return isPlaying();
             },
 
-            seek: async function (time) {
+            seek: async function (time: number) {
               if (Tone.getTransport().state !== "paused") {
-                this.eventEmitter.emit("player.seeked", time);
-                this.eventEmitter.emit("player.timeupdate", time);
+                this.eventEmitter?.emit("player.seeked", time);
+                this.eventEmitter?.emit("player.timeupdate", time);
               } else {
-                this.eventEmitter.emit("player.timeupdate", Tone.getTransport().seconds);
+                this.eventEmitter?.emit("player.timeupdate", Tone.getTransport().seconds);
               }
             },
 
@@ -335,7 +361,7 @@ function App() {
             },
 
             getDuration: function () {
-              return this.externalPlayer.buffer.duration;
+              return this.externalPlayer?.buffer.duration ?? 0;
             },
           };
 
@@ -395,7 +421,7 @@ function App() {
 
   return (
     <div className="App">
-      <VStack minH="100vh" w="100%" justifyContent="top" alignItems="center" spacing={4} bg="brand.900">
+      <VStack minH="100vh" w="100%" justifyContent="flex-start" alignItems="center" gap={4} bg="brand.900">
         <header className="App-header">
           <Logo className="App-logo" fill={colorMode} />
           <p>NETRONOME (CONDUCTOR MODE)</p>
@@ -416,12 +442,7 @@ function App() {
         <Button
           className="Play-button"
           colorPalette="cyan"
-          onClick={async () =>
-          await togglePlayback(
-            state === "stopped",
-            Tone.getTransport().position as unknown as string,
-          )
-        }
+          onClick={async () => await togglePlayback(state === "stopped")}
           loading={state === "paused"}
           hidden={connectionState !== "Connected"}
         >

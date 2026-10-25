@@ -8,6 +8,7 @@
  *   client.on("beat", (env) => scheduleClick(client.localAudioTime(env.at, ctx)));
  */
 
+export type { Socket } from "socket.io-client";
 export { ClockSync, type ClockEstimate, type ClockSyncOptions, type DriftOptions } from "./clock-sync.js";
 export {
   fitCtxRate,

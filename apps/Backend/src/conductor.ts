@@ -22,10 +22,10 @@ const conductorRoutes = (conductors: Namespace, performers: Namespace, clock: Se
             conductor.status = "Connecting";
         });
 
-        socket.on("calculate-latency", (time: number, cb: (latency: number) => void) => {
+        socket.on("calculate-latency", (time: number, cb?: (latency: number) => void) => {
             sync.recordProbe(socket.id, time);
             const latencyPlusOffset = clock.now() - time;
-            cb(latencyPlusOffset);
+            cb?.(latencyPlusOffset);
         });
 
         socket.on("delivery-mode", (mode: "scheduled" | "on-receipt") => {
@@ -37,17 +37,19 @@ const conductorRoutes = (conductors: Namespace, performers: Namespace, clock: Se
             }
         });
 
-        socket.on("conductor-sync-orchestra", (latencies: number[], cb: (bool: boolean) => void) => {
+        socket.on("conductor-sync-orchestra", (latencies: number[], cb?: (bool: boolean) => void) => {
             // Single-conductor rule, enforced in one place (registry).
+            // The ack is optional: the SDK's automatic resync re-claims without
+            // one, and dereferencing a missing ack crashes the whole server.
             if (!registry.claimConductor(conductor.id)) {
                 console.log("A conductor is already connected!");
-                return cb(false);
+                return cb?.(false);
             }
             if (!orc.conductor) {
                 orc.conductor = conductor;
             } else if (orc.conductor.id !== conductor.id) {
                 console.log("A conductor is already connected!");
-                return cb(false);
+                return cb?.(false);
             }
 
             conductor.latencies = latencies;
@@ -71,15 +73,15 @@ const conductorRoutes = (conductors: Namespace, performers: Namespace, clock: Se
                 });
             }
             console.log("conductor synced to orchestra: ", conductor);
-            return cb(true);
+            return cb?.(true);
         });
 
-        socket.on('conductor-start', (targetTime: number, position: string, cb: (newTargetTime: number) => void) => {
+        socket.on('conductor-start', (targetTime: number, position: string, cb?: (newTargetTime: number) => void) => {
             console.log('conductor-start');
             // Phase 2: the engine owns the deadline — clamped to now + minLead;
             // the legacy blind fast-forward (+1000ms) bump is retired.
             const newTargetTime = engine.start(targetTime, position);
-            cb(newTargetTime);
+            cb?.(newTargetTime);
         });
 
         socket.on('conductor-stop', () => {
@@ -89,12 +91,12 @@ const conductorRoutes = (conductors: Namespace, performers: Namespace, clock: Se
             console.log(`stopped at ${Math.round(committed.at)}ms, frozen at ${committed.positionBeats.toFixed(3)} beats`);
         });
 
-        socket.on('conductor-change-tempo', (targetTime: number, _position: string, newTempo: number, cb: (newTargetTime: number) => void) => {
+        socket.on('conductor-change-tempo', (targetTime: number, _position: string, newTempo: number, cb?: (newTargetTime: number) => void) => {
             console.log("change-tempo: ", newTempo);
             // Engine commits the tempo on the timeline (position-continuous);
             // the ratcheting totalLatency budget is no longer involved.
             const newTargetTime = engine.tempo(targetTime, newTempo);
-            cb(newTargetTime);
+            cb?.(newTargetTime);
         })
 
         socket.on('conductor-backtrack', (backtrack: ArrayBuffer | null) => {

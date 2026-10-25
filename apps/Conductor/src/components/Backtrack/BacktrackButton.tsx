@@ -1,6 +1,6 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { CloseButton, FileUpload, Input, InputGroup, useFileUpload, VStack } from "@chakra-ui/react"
-import { Socket } from 'socket.io-client';
+import type { Socket } from '@netronome/client';
 
 export const BacktrackButton = ({ setBacktrack, socket }: { setBacktrack: (ab: ArrayBuffer | null, s: Socket | null) => void, socket: Socket | null }) => {
   const fileUpload = useFileUpload({

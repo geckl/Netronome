@@ -49,7 +49,7 @@ export const TempoSlider = ({
                         <Slider.Track>
                             <Slider.Range />
                         </Slider.Track>
-                        <Slider.Thumb>
+                        <Slider.Thumb index={0}>
                             <Slider.DraggingIndicator
                                 layerStyle="fill.solid"
                                 top="6"
@@ -61,7 +61,7 @@ export const TempoSlider = ({
                             <Slider.HiddenInput />
                         </Slider.Thumb>
                         <Slider.MarkerGroup>
-                            <Slider.Marker />
+                            <Slider.Marker value={40} />
                         </Slider.MarkerGroup>
                     </Slider.Control>
                 </Slider.Root>

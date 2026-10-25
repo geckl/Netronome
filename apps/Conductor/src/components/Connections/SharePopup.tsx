@@ -1,4 +1,3 @@
-import React from "react";
 import { Button, Center, Dialog, QrCode } from "@chakra-ui/react";
 
 const SharePopup = ({ipAddress}: {ipAddress: string | null}) => {
@@ -19,7 +18,7 @@ const SharePopup = ({ipAddress}: {ipAddress: string | null}) => {
               </Dialog.Header>
               <Dialog.Body>
                 <Center>
-                <QrCode.Root value={ipAddress} size="lg" colorPalette="black">
+                <QrCode.Root value={ipAddress ?? undefined} size="lg" colorPalette="black">
                   <QrCode.Frame style={{ fill: "black" }}>
                     <QrCode.Pattern />
                   </QrCode.Frame>

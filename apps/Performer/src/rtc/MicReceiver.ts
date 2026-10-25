@@ -1,4 +1,4 @@
-import { Socket } from "socket.io-client";
+import type { Socket } from "@netronome/client";
 
 /**
  * MicReceiver — answers the conductor's WebRTC offer and plays the incoming

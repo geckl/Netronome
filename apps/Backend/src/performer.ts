@@ -25,10 +25,10 @@ const performerRoutes = (performers: Namespace, conductors: Namespace, clock: Se
             conductors.emit("update-members", registry.roster());
         });
 
-        socket.on("calculate-latency", (time: number, cb: (latency: number) => void) => {
+        socket.on("calculate-latency", (time: number, cb?: (latency: number) => void) => {
             sync.recordProbe(socket.id, time);
             const latencyPlusOffset = clock.now() - time;
-            cb(latencyPlusOffset);
+            cb?.(latencyPlusOffset);
         });
 
         socket.on("delivery-mode", (mode: "scheduled" | "on-receipt") => {

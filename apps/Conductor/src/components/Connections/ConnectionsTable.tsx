@@ -1,5 +1,4 @@
 import { Table, Status, Spacer, Flex } from "@chakra-ui/react"
-import React from "react"
 import { Performer, ConnectionStatus } from "../../types"
 
 const ConnectionsTable = ({ members }: { members: Performer[] }) => {
@@ -46,13 +45,5 @@ const ConnectionsTable = ({ members }: { members: Performer[] }) => {
         </Table.Root>
     )
 }
-
-const items = [
-    { id: 1, name: "Laptop", category: "Electronics", price: 999.99 },
-    { id: 2, name: "Coffee Maker", category: "Home Appliances", price: 49.99 },
-    { id: 3, name: "Desk Chair", category: "Furniture", price: 150.0 },
-    { id: 4, name: "Smartphone", category: "Electronics", price: 799.99 },
-    { id: 5, name: "Headphones", category: "Accessories", price: 199.99 },
-]
 
 export default ConnectionsTable;

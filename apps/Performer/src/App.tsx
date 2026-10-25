@@ -1,6 +1,6 @@
 import { ReactComponent as Logo } from "./logo.svg";
 import "./styles/App.css";
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type ChangeEvent, type MouseEvent as ReactMouseEvent } from "react";
 import { NetronomeClient } from "@netronome/client";
 import { resetTransport, toast } from "./compat";
 import { ConnectionStatus, JoinButton } from "./types";
@@ -8,12 +8,10 @@ import { initialSocketEvents, connectedSocketEvents } from "./SocketIO";
 import { MicReceiver } from "./rtc/MicReceiver";
 import { PerformerSync } from "./Sync";
 import { ToastContainer } from "react-toastify";
-import type { Socket } from "socket.io-client";
 
 function App() {
   const connectionState = useRef<ConnectionStatus>("Disconnected");
   const [isSyncing, setIsSyncing] = useState(false);
-  const [socket, setSocket] = useState<Socket | null>(null);
   const volume = useRef<number>(0.5);
   const delay = useRef<number>(0);
   const [delayDisplay, setDelayDisplay] = useState<number>(0);
@@ -40,7 +38,7 @@ function App() {
     });
 
     // App-level socket plumbing (no deadlines ride this file)
-    initialSocketEvents(socketInstance, setSocket, connectionState);
+    initialSocketEvents(socketInstance, connectionState);
     connectedSocketEvents(socketInstance);
 
     // Latency readout: refreshed alongside the 1s HTTP NTP loop
@@ -61,7 +59,6 @@ function App() {
       syncRef.current = null;
       client.disconnect();
       clientRef.current = null;
-      setSocket(null);
     };
   }, []);
 
@@ -90,7 +87,7 @@ function App() {
         setIsSyncing(false);
         setLatencyDisplay(null);
         resetTransport();
-        toast("Failed To Connect: " + error.message);
+        toast("Failed To Connect: " + (error instanceof Error ? error.message : String(error)));
       }
     }
   }
@@ -137,11 +134,11 @@ function App() {
       setIsSyncing(false);
       setLatencyDisplay(null);
       resetTransport();
-      toast("Failed To Connect: " + error.message);
+      toast("Failed To Connect: " + (error instanceof Error ? error.message : String(error)));
     }
   }
 
-  function onVolumeChange(e) {
+  function onVolumeChange(e: ChangeEvent<HTMLInputElement>) {
     const value = parseFloat(e.target.value);
     volume.current = value;
     syncRef.current?.setClickVolume(value);
@@ -149,15 +146,15 @@ function App() {
     receiverRef.current?.setVolume(value); // live mic/mix volume
   }
 
-  function onDelayChange(e) {
+  function onDelayChange(e: ChangeEvent<HTMLInputElement>) {
     const value = parseInt(e.target.value);
     delay.current = value;
     setDelayDisplay(value);
     syncRef.current?.setDelay(value);
   }
 
-  function resetValue(e) {
-    e.target.value = 0;
+  function resetValue(e: ReactMouseEvent<HTMLInputElement>) {
+    e.currentTarget.value = "0";
     delay.current = 0;
     setDelayDisplay(0);
     syncRef.current?.setDelay(0);

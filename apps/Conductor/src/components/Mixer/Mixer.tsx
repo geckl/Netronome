@@ -1,4 +1,3 @@
-import React from "react";
 import { useRef, useSyncExternalStore } from "react";
 import { Badge, HStack, Spacer, Text, VStack } from "@chakra-ui/react";
 import { MicAudioEngine } from "../../audio/MicAudioEngine";
